@@ -9,3 +9,4 @@
 !.editorconfig
 !.clang-tidy
 !.githooks/*
+!riscv-asm/**/*.s
