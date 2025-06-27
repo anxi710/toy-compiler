@@ -1,5 +1,4 @@
 *
-*.*
 
 !*/
 !.gitignore
@@ -10,3 +9,6 @@
 !.clang-tidy
 !.githooks/*
 !riscv-asm/**/*.s
+!src/**/*.cpp
+!src/**/*.hpp
+!Makefile
