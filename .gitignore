@@ -6,3 +6,5 @@
 !.gitmessage
 !README.md
 !reference/**/*.pdf
+!.editorconfig
+!.clang-tidy
