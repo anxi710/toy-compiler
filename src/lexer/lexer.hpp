@@ -1,14 +1,13 @@
 #pragma once
 
-#include <expected>
 #include <memory>
-#include <sstream>
 #include <string>
 #include <vector>
+#include <optional>
 
 #include "token.hpp"
 #include "keyword.hpp"
-#include "util/position.hpp"
+#include "position.hpp"
 
 namespace err {
 
@@ -22,28 +21,28 @@ namespace lex::base {
 // abstract class lexer: define some utilities and data structure.
 class Lexer {
 public:
-  Lexer() = delete;
-  explicit Lexer(const std::vector<std::string> &t);
-  explicit Lexer(std::vector<std::string> &&t);
+  Lexer(std::vector<std::string> text, err::ErrReporter &ereporter);
   virtual ~Lexer() = default;
 
-  void initKeywordTable();
-
 public:
-  auto nextToken() -> std::expected<token::Token, err::LexErr>;
+  void reset(const util::Position &pos);
+  void setErrReporter(std::shared_ptr<err::ErrReporter> p_ereporter);
 
-public:
-  void reset(const util::Position &p);
-  void setErrReporter(std::shared_ptr<err::ErrReporter> reporter);
+  auto nextToken() -> std::optional<token::Token>;
 
 private:
-  std::shared_ptr<err::ErrReporter> reporter; // error reporter
+  void shiftPos(std::size_t delta);
 
+  auto matchThroughRE(const std::string &view) -> std::optional<token::Token>;
+  auto matchThroughDFA(const std::string &view) -> std::optional<token::Token>;
+
+private:
+  char peek; // the next character to be scanned
+  util::Position pos; // the next position to be scanned
   std::vector<std::string> text; // text to be scanned
-  util::Position pos;            // the next position to be scanned
-  char peek;                     // the next character to be scanned
 
-  keyword::KeywordTable keyword_table; // 关键词表
+  key::KeywordTable keyword_table;
+  err::ErrReporter  &ereporter; // Error Reporter
 };
 
 } // namespace lex::base

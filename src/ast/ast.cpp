@@ -1,271 +1,192 @@
 #include "ast.hpp"
+#include "visitor.hpp"
 
-namespace par::ast {
-
-// Node
-void
-Node::setPos(std::size_t row, std::size_t col)
-{
-  pos = util::Position{row, col};
-}
+namespace ast {
 
 void
-Node::setPos(util::Position pos)
+Prog::accept(visit::NodeVisitor& visitor)
 {
-  this->pos = pos;
+  visitor.visit(*this);
 }
 
-util::Position
-Node::getPos() const
+void
+Arg::accept(visit::NodeVisitor& visitor)
 {
-  return pos;
+  visitor.visit(*this);
 }
 
-// virtual function: type
-NodeType
-Decl::type() const
+void
+BlockStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Decl;
+  visitor.visit(*this);
 }
 
-NodeType
-Prog::type() const
+void
+FuncHeaderDecl::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Prog;
+  visitor.visit(*this);
 }
 
-NodeType
-VarDeclBody::type() const
+void
+FuncDecl::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::VarDeclBody;
+  visitor.visit(*this);
 }
 
-NodeType
-VarType::type() const
+void
+ExprStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::VarType;
+  visitor.visit(*this);
 }
 
-NodeType
-Integer::type() const
+void
+BracketExpr::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Integer;
+  visitor.visit(*this);
 }
 
-NodeType
-Array::type() const
+void
+AssignElem::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Array;
+  visitor.visit(*this);
 }
 
-NodeType
-Tuple::type() const
+void
+Variable::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Tuple;
+  visitor.visit(*this);
 }
 
-NodeType
-Arg::type() const
+void
+ArrayAccess::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Arg;
+  visitor.visit(*this);
 }
 
-NodeType
-Stmt::type() const
+void
+TupleAccess::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Stmt;
+  visitor.visit(*this);
 }
 
-NodeType
-BlockStmt::type() const
+void
+Number::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::BlockStmt;
+  visitor.visit(*this);
 }
 
-NodeType
-FuncHeaderDecl::type() const
+void
+Factor::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::FuncHeaderDecl;
+  visitor.visit(*this);
 }
 
-NodeType
-FuncDecl::type() const
+void
+ArrayElems::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::FuncDecl;
+  visitor.visit(*this);
 }
 
-NodeType
-Expr::type() const
+void
+TupleElems::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Expr;
+  visitor.visit(*this);
 }
 
-NodeType
-ExprStmt::type() const
+void
+RetStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::ExprStmt;
+  visitor.visit(*this);
 }
 
-NodeType
-ParenthesisExpr::type() const
+void
+VarDeclStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::ParenthesisExpr;
+  visitor.visit(*this);
 }
 
-NodeType
-AssignElement::type() const
+void
+AssignStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::AssignElement;
+  visitor.visit(*this);
 }
 
-NodeType
-Variable::type() const
+void
+CmpExpr::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Variable;
+  visitor.visit(*this);
 }
 
-NodeType
-Dereference::type() const
+void
+AriExpr::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Dereference;
+  visitor.visit(*this);
 }
 
-NodeType
-ArrayAccess::type() const
+void
+CallExpr::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::ArrayAccess;
+  visitor.visit(*this);
 }
 
-NodeType
-TupleAccess::type() const
+void
+ElseClause::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::TupleAccess;
+  visitor.visit(*this);
 }
 
-NodeType
-Number::type() const
+void
+IfStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Number;
+  visitor.visit(*this);
 }
 
-NodeType
-Factor::type() const
+void
+WhileStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::Factor;
+  visitor.visit(*this);
 }
 
-NodeType
-ArrayElements::type() const
+void
+ForStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::ArrayElements;
+  visitor.visit(*this);
 }
 
-NodeType
-TupleElements::type() const
+void
+LoopStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::TupleElements;
+  visitor.visit(*this);
 }
 
-NodeType
-RetStmt::type() const
+void
+BreakStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::RetStmt;
+  visitor.visit(*this);
 }
 
-NodeType
-VarDeclStmt::type() const
+void
+ContinueStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::VarDeclStmt;
+  visitor.visit(*this);
 }
 
-NodeType
-AssignStmt::type() const
+void
+NullStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::AssignStmt;
+  visitor.visit(*this);
 }
 
-NodeType
-VarDeclAssignStmt::type() const
+void
+FuncExprBlockStmt::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::VarDeclAssignStmt;
+  visitor.visit(*this);
 }
 
-NodeType
-ComparExpr::type() const
+void
+IfExpr::accept(visit::NodeVisitor& visitor)
 {
-  return NodeType::ComparExpr;
+  visitor.visit(*this);
 }
 
-NodeType
-ArithExpr::type() const
-{
-  return NodeType::ArithExpr;
-}
-
-NodeType
-CallExpr::type() const
-{
-  return NodeType::CallExpr;
-}
-
-NodeType
-ElseClause::type() const
-{
-  return NodeType::ElseClause;
-}
-
-NodeType
-IfStmt::type() const
-{
-  return NodeType::IfStmt;
-}
-
-NodeType
-WhileStmt::type() const
-{
-  return NodeType::WhileStmt;
-}
-
-NodeType
-ForStmt::type() const
-{
-  return NodeType::ForStmt;
-}
-
-NodeType
-LoopStmt::type() const
-{
-  return NodeType::LoopStmt;
-}
-
-NodeType
-BreakStmt::type() const
-{
-  return NodeType::BreakStmt;
-}
-
-NodeType
-ContinueStmt::type() const
-{
-  return NodeType::ContinueStmt;
-}
-
-NodeType
-NullStmt::type() const
-{
-  return NodeType::NullStmt;
-}
-
-NodeType
-FuncExprBlockStmt::type() const
-{
-  return NodeType::FuncExprBlockStmt;
-}
-
-NodeType
-IfExpr::type() const
-{
-  return NodeType::IfExpr;
-}
-
-}
+} // namespace ast

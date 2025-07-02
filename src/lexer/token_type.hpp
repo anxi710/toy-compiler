@@ -1,7 +1,9 @@
 #pragma once
 
-#include <cstdint>
 #include <string>
+#include <cstdint>
+
+#include "panic.hpp"
 
 namespace lex::token {
 
@@ -27,7 +29,6 @@ enum class TokenType : std::uint8_t {
   BREAK,
   CONTINUE,
 
-  REF,       //  &
   LPAREN,    //  (
   RPAREN,    //  )
   LBRACE,    //  {
@@ -38,26 +39,23 @@ enum class TokenType : std::uint8_t {
   COLON,     //  :
   COMMA,     //  ,
 
-  OP_PLUS, //  +
+  PLUS, //  +
 
   // Group 2
   ASSIGN,   //  =
-  OP_MINUS, //  -
-  OP_MUL,   //  *
-  OP_DIV,   //  /
-  OP_GT,    //  >
-  OP_LT,    //  <
+  MINUS,    //  -
+  MUL,      //  *
+  DIV,      //  /
+  GT,       //  >
+  LT,       //  <
   DOT,      //  .
 
-  OP_EQ,    //  ==
-  OP_NEQ,   //  !=
-  OP_GE,    //  >=
-  OP_LE,    //  <=
-  DOTS,     //  ..
-  ARROW,    //  ->
-  SIN_COM,  //  //
-  LMUL_COM, //  /*
-  RMUL_COM  //  */
+  EQ,      //  ==
+  NEQ,     //  !=
+  GEQ,      //  >=
+  LEQ,      //  <=
+  DOTS,    //  ..
+  ARROW,   //  ->
 };
 
 auto tokenType2str(TokenType type) -> std::string;

@@ -1,45 +1,48 @@
 #pragma once
 
-#include <memory>
-
-#include "error/err_report.hpp"
-#include "ast/ast.hpp"
-#include "symbol/symbol_table.hpp"
+#include "ast.hpp"
+#include "position.hpp"
+#include "err_report.hpp"
+#include "symbol_table.hpp"
 
 namespace sem {
 
 class SemanticChecker {
 public:
-  SemanticChecker() = default;
+  SemanticChecker(sym::SymbolTable &stable, err::ErrReporter &ereporter)
+    : stable(stable), ereporter(ereporter) {}
   ~SemanticChecker() = default;
 
-  void setErrReporter(std::shared_ptr<err::ErrReporter> p_ereporter);
-  void setSymbolTable(std::shared_ptr<sym::SymbolTable> p_stable);
-
 public:
-  void checkProg(const par::ast::ProgPtr &p_prog);
+  void check(const ast::FuncDecl &func);
+  void check(const ast::FuncHeaderDecl &fhdecl);
+  void check(const ast::BlockStmt &bstmt);
+  void check(const ast::FuncExprBlockStmt &febstmt);
+  void check(const ast::RetStmt &rstmt);
+  void check(const ast::VarDeclStmt &vdstmt);
+  void check(const ast::AssignStmt &astmt);
+  void check(const ast::Variable &var);
+  void check(const ast::ArrayAccess &aacc);
+  void check(const ast::TupleAccess &aacc);
+  void check(const ast::CmpExpr &cexpr);
+  void check(const ast::AriExpr &aexpr);
+  void check(const ast::ArrayElems &aelems);
+  void check(const ast::TupleElems &telems);
+  void check(const ast::BracketExpr &bexpr);
+  void check(const ast::Factor &factor);
+  void check(const ast::Number &num);
+  void check(const ast::CallExpr &cexpr);
+  void check(const ast::IfStmt &istmt);
+  void check(const ast::ElseClause &eclause);
+  void check(const ast::WhileStmt &wstmt);
+  void check(const ast::ForStmt &fstmt);
+  void check(const ast::LoopStmt &lstmt);
+  void check(const ast::BreakStmt &bstmt);
+  void check(const ast::IfExpr &iexpr);
 
 private:
-  void checkFuncDecl(const par::ast::FuncDeclPtr &p_fdecl);
-  void checkFuncHeaderDecl(const par::ast::FuncHeaderDeclPtr &p_fhdecl);
-  auto checkBlockStmt(const par::ast::BlockStmtPtr &p_bstmt) -> bool;
-  void checkVarDeclStmt(const par::ast::VarDeclStmtPtr &p_vdstmt);
-  void checkRetStmt(const par::ast::RetStmtPtr &p_rstmt);
-  auto checkExprStmt(const par::ast::ExprStmtPtr &p_estmt) -> sym::VarType;
-  auto checkExpr(const par::ast::ExprPtr &p_expr) -> sym::VarType;
-  auto checkCallExpr(const par::ast::CallExprPtr &p_caexpr) -> sym::VarType;
-  auto checkComparExpr(const par::ast::ComparExprPtr &p_coexpr) -> sym::VarType;
-  auto checkArithExpr(const par::ast::ArithExprPtr &p_aexpr) -> sym::VarType;
-  auto checkFactor(const par::ast::FactorPtr &p_factor) -> sym::VarType;
-  auto checkVariable(const par::ast::VariablePtr &p_variable) -> sym::VarType;
-  auto checkNumber(const par::ast::NumberPtr &p_number) -> sym::VarType;
-  void checkAssignStmt(const par::ast::AssignStmtPtr &p_astmt);
-  void checkIfStmt(const par::ast::IfStmtPtr &p_istmt);
-  void checkWhileStmt(const par::ast::WhileStmtPtr &p_wstmt);
-
-private:
-  std::shared_ptr<sym::SymbolTable> p_stable;
-  std::shared_ptr<err::ErrReporter> p_ereporter;
+  sym::SymbolTable&      stable;    // Symbol Table
+  err::ErrReporter&      ereporter; // Error Reporter
 };
 
 } // namespace semantic

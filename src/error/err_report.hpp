@@ -8,96 +8,10 @@
 
 namespace err {
 
-struct Err {
-  std::string msg; // error message
-
-  Err() = default;
-  Err(const std::string &m) : msg(m) {}
-  Err(std::string &&m) : msg(std::move(m)) {}
-
-  [[nodiscard]]
-  virtual constexpr auto kind() const -> ErrType = 0;
-  virtual ~Err() = default;
-};
-
-// 词法错误
-struct LexErr : Err
-{
-  LexErrType type;
-  std::size_t row;
-  std::size_t col;
-  std::string token;
-
-  LexErr() = delete;
-
-  explicit LexErr(LexErrType type, const std::string &msg,
-                  std::size_t r, std::size_t c, std::string token)
-    : Err(msg), type(type), row(r), col(c), token(std::move(token))
-  {
-  }
-
-  ~LexErr() override = default;
-
-  [[nodiscard]] constexpr ErrType
-  kind() const override
-  {
-    return ErrType::Lex;
-  }
-};
-
-// 语法错误
-struct ParErr : Err {
-  ParErrType type;
-  std::size_t row;
-  std::size_t col;
-  std::string token;
-
-  ParErr() = delete;
-
-  explicit ParErr(ParErrType type, const std::string &msg,
-                  std::size_t r, std::size_t c, std::string token)
-    : Err(msg), type(type), row(r), col(c), token(std::move(token))
-  {
-  }
-
-  ~ParErr() override = default;
-
-  [[nodiscard]] constexpr ErrType
-  kind() const override
-  {
-    return ErrType::Par;
-  }
-};
-
-// 语义错误
-struct SemErr : Err {
-  SemErrType type;
-  std::size_t row;
-  std::size_t col;
-  std::string scope_name;
-
-  SemErr() = delete;
-  explicit SemErr(SemErrType type, const std::string &msg,
-                  std::size_t r, std::size_t c, std::string scope_name)
-    : Err(msg), type(type), row(r), col(c), scope_name(std::move(scope_name))
-  {
-  }
-
-  ~SemErr() override = default;
-
-  [[nodiscard]] constexpr ErrType
-  kind() const override
-  {
-    return ErrType::Sem;
-  }
-};
-
 // 错误报告器
 class ErrReporter {
 public:
-  ErrReporter() = delete;
-  explicit ErrReporter(const std::string &t);
-
+  ErrReporter(const std::string &t);
   ~ErrReporter() = default;
 
 public:
@@ -109,6 +23,8 @@ public:
               std::size_t c, const std::string &token);
   void report(SemErrType type, const std::string &msg, std::size_t r,
               std::size_t c, const std::string &scope_name);
+
+  [[noreturn]] void terminateProg();
 
 public:
   void displayLexErrs() const;

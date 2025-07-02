@@ -48,11 +48,11 @@ void
 ErrReporter::displayLexErr(const LexErr &err) const
 {
   switch (err.type) {
-  default:
-    break;
-  case LexErrType::UnknownToken:
-    displayUnknownType(err);
-    break;
+    default:
+      break;
+    case LexErrType::UNKNOWN_TOKEN:
+      displayUnknownType(err);
+      break;
   }
 }
 
@@ -73,57 +73,57 @@ std::pair<std::string, std::string>
 displaySemErrType(SemErrType type)
 {
   switch (type) {
-  case SemErrType::ArgCountMismatch:
-    return {
-      "ArgMismatch",
-      "函数参数个数不匹配"
-    };
-  case SemErrType::VoidFuncReturnValue:
-  case SemErrType::FuncReturnTypeMismatch:
-    return {
-      "FuncReturnMismatch",
-      "函数返回值类型不匹配"
-    };
-  case SemErrType::MissingReturnValue:
-    return {
-      "MissingReturnValue",
-      "函数有返回值但未返回任何值"
-    };
-  case SemErrType::UndefinedFunctionCall:
-    return {
-      "UndefinedFunction",
-      "函数未定义"
-    };
-  case SemErrType::UndeclaredVariable:
-    return {
-      "UndeclaredVariable",
-      "变量未声明"
-    };
-  case SemErrType::UninitializedVariable:
-    return {
-      "UninitializedVariable",
-      "变量未初始化"
-    };
-  case SemErrType::AssignToNonVariable:
-    return {
-      "InvalidAssignment",
-      "无效赋值语句"
-    };
-  case SemErrType::AssignToUndeclaredVar:
-    return {
-      "InvalidAssignment",
-      "无效赋值语句"
-    };
-  case SemErrType::TypeInferenceFailure:
-    return {
-      "TypeInferenceFailure",
-      "变量无法通过自动类型推导确定类型"
-    };
-  case SemErrType::TypeMismatch:
-    return {
-      "TypeMismatch",
-      "变量类型不匹配"
-    };
+    case SemErrType::ArgCountMismatch:
+      return {
+        "ArgMismatch",
+        "函数参数个数不匹配"
+      };
+    case SemErrType::VoidFuncReturnValue:
+    case SemErrType::FuncReturnTypeMismatch:
+      return {
+        "FuncReturnMismatch",
+        "函数返回值类型不匹配"
+      };
+    case SemErrType::MissingReturnValue:
+      return {
+        "MissingReturnValue",
+        "函数有返回值但未返回任何值"
+      };
+    case SemErrType::UndefinedFunctionCall:
+      return {
+        "UndefinedFunction",
+        "函数未定义"
+      };
+    case SemErrType::UndeclaredVariable:
+      return {
+        "UndeclaredVariable",
+        "变量未声明"
+      };
+    case SemErrType::UninitializedVariable:
+      return {
+        "UninitializedVariable",
+        "变量未初始化"
+      };
+    case SemErrType::AssignToNonVariable:
+      return {
+        "InvalidAssignment",
+        "无效赋值语句"
+      };
+    case SemErrType::AssignToUndeclaredVar:
+      return {
+        "InvalidAssignment",
+        "无效赋值语句"
+      };
+    case SemErrType::TypeInferenceFailure:
+      return {
+        "TypeInferenceFailure",
+        "变量无法通过自动类型推导确定类型"
+      };
+    case SemErrType::TypeMismatch:
+      return {
+        "TypeMismatch",
+        "变量类型不匹配"
+      };
   }
 }
 
@@ -165,8 +165,7 @@ ErrReporter::ErrReporter(const std::string &t)
   std::istringstream iss{t};
 
   std::string line{};
-  while (std::getline(iss, line))
-  {
+  while (std::getline(iss, line)) {
     this->text.push_back(line);
   }
 
@@ -184,7 +183,7 @@ ErrReporter::ErrReporter(const std::string &t)
  */
 void
 ErrReporter::report(LexErrType type, const std::string &msg,
-                    std::size_t r, std::size_t c, const std::string &token, bool terminate)
+  std::size_t r, std::size_t c, const std::string &token, bool terminate)
 {
   lex_errs.emplace_back(type, msg, r, c, token);
 
@@ -214,7 +213,7 @@ ErrReporter::report(const LexErr &le, bool terminate)
  */
 void
 ErrReporter::report(ParErrType type, const std::string &msg,
-                    std::size_t r, std::size_t c, const std::string &token)
+  std::size_t r, std::size_t c, const std::string &token)
 {
   par_errs.emplace_back(type, msg, r, c, token);
 }
@@ -230,7 +229,7 @@ ErrReporter::report(ParErrType type, const std::string &msg,
  */
 void
 ErrReporter::report(SemErrType type, const std::string &msg,
-                    std::size_t r, std::size_t c, const std::string &scope_name)
+  std::size_t r, std::size_t c, const std::string &scope_name)
 {
   sem_errs.emplace_back(type, msg, r, c, scope_name);
 }
@@ -281,6 +280,13 @@ ErrReporter::hasErrs() const
 {
   return !(lex_errs.empty() && par_errs.empty() && sem_errs.empty());
 }
+
+[[noreturn]] void
+ErrReporter::terminateProg()
+{
+  exit(1);
+}
+
 
 /*---------------- ErrReporter ----------------*/
 

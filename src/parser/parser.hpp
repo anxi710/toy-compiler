@@ -1,88 +1,66 @@
 #pragma once
 
-#include <expected>
-#include <functional>
-#include <memory>
 #include <optional>
 
-#include "ast/ast.hpp"
-#include "lexer/token.hpp"
-
-namespace err {
-
-struct LexErr;
-class ErrReporter;
-
-} // namespace error
+#include "ast.hpp"
+#include "lexer.hpp"
+#include "err_report.hpp"
+#include "semantic_checker.hpp"
 
 namespace par::base {
 
 class Parser {
 public:
-  Parser() = delete;
-  explicit Parser(
-    std::function<std::expected<lex::token::Token, err::LexErr>()> nextTokenFunc
+  Parser(lex::base::Lexer& lexer, sym::SymbolTable& stable,
+    sem::SemanticChecker& schecker, err::ErrReporter& ereporter
   );
   ~Parser() = default;
 
 public:
-  [[nodiscard]] auto parseProgram() -> ast::ProgPtr;
+  auto parseProgram() -> ast::ProgPtr;
 
 private:
+  auto nextToken() -> std::optional<lex::token::Token>;
   void advance();
-  auto match(lex::token::TokenType type) -> bool;
-  [[nodiscard]] auto check(lex::token::TokenType type) const -> bool;
-  auto checkAhead(lex::token::TokenType type) -> bool;
-  void expect(lex::token::TokenType type, const std::string &error_msg);
+  bool match(lex::token::TokenType type);
+  bool check(lex::token::TokenType type) const;
+  bool checkAhead(lex::token::TokenType type);
+  void expect(lex::token::TokenType type, const std::string &msg);
 
-  [[nodiscard]] auto parseArg() -> ast::ArgPtr;
-  [[nodiscard]] auto parseIfExpr() -> ast::IfExprPtr;
-  [[nodiscard]] auto parseIfStmt() -> ast::IfStmtPtr;
-  [[nodiscard]] auto parseForStmt() -> ast::ForStmtPtr;
-  [[nodiscard]] auto parseRetStmt() -> ast::RetStmtPtr;
-  [[nodiscard]] auto parseVarType() -> ast::VarTypePtr;
-  [[nodiscard]] auto parseFuncDecl() -> ast::FuncDeclPtr;
-  [[nodiscard]] auto parseCallExpr() -> ast::CallExprPtr;
-  [[nodiscard]] auto parseLoopStmt() -> ast::LoopStmtPtr;
-  [[nodiscard]] auto parseBlockStmt() -> ast::BlockStmtPtr;
-  [[nodiscard]] auto parseBreakStmt() -> ast::BreakStmtPtr;
-  [[nodiscard]] auto parseWhileStmt() -> ast::WhileStmtPtr;
-  [[nodiscard]] auto parseElseClause() -> ast::ElseClausePtr;
-  [[nodiscard]] auto parseStmtOrExpr() -> ast::NodePtr;
-  [[nodiscard]] auto parseVarDeclStmt() -> ast::VarDeclStmtPtr;
-  [[nodiscard]] auto parseAssignElement() -> ast::AssignElementPtr;
-  [[nodiscard]] auto parseFuncHeaderDecl() -> ast::FuncHeaderDeclPtr;
-  [[nodiscard]] auto parseFuncExprBlockStmt() -> ast::FuncExprBlockStmtPtr;
-  [[nodiscard]] auto parseAssignStmt(ast::AssignElementPtr &&lvalue)
-      -> ast::AssignStmtPtr;
-
-  [[nodiscard]] auto
-  parseExpr(std::optional<ast::AssignElementPtr> elem = std::nullopt)
-      -> ast::ExprPtr;
-  [[nodiscard]] auto
-  parseFactor(std::optional<ast::AssignElementPtr> elem = std::nullopt)
-      -> ast::ExprPtr;
-  [[nodiscard]] auto
-  parseCmpExpr(std::optional<ast::AssignElementPtr> elem = std::nullopt)
-      -> ast::ExprPtr;
-  [[nodiscard]] auto
-  parseAddExpr(std::optional<ast::AssignElementPtr> elem = std::nullopt)
-      -> ast::ExprPtr;
-  [[nodiscard]] auto
-  parseMulExpr(std::optional<ast::AssignElementPtr> elem = std::nullopt)
-      -> ast::ExprPtr;
-  [[nodiscard]] auto
-  parseElement(std::optional<ast::AssignElementPtr> elem = std::nullopt)
-      -> ast::ExprPtr;
+  auto parseFuncDecl() -> ast::FuncDeclPtr;
+  auto parseFuncHeaderDecl() -> ast::FuncHeaderDeclPtr;
+  auto parseArg() -> ast::ArgPtr;
+  auto parseType() -> type::TypePtr;
+  auto parseBlockStmt() -> ast::BlockStmtPtr;
+  auto parseStmtOrExpr() -> ast::StmtOrExprPtr;
+  auto parseRetStmt() -> ast::RetStmtPtr;
+  auto parseVarDeclStmt() -> ast::VarDeclStmtPtr;
+  auto parseAssignStmt(ast::AssignElemPtr &&lvalue) -> ast::AssignStmtPtr;
+  auto parseAssignElem() -> ast::AssignElemPtr;
+  auto parseExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
+  auto parseCmpExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
+  auto parseAddExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
+  auto parseMulExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
+  auto parseFactor(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
+  auto parseElement(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
+  auto parseCallExpr() -> ast::CallExprPtr;
+  auto parseIfStmt() -> ast::IfStmtPtr;
+  auto parseElseClause() -> ast::ElseClausePtr;
+  auto parseWhileStmt() -> ast::WhileStmtPtr;
+  auto parseForStmt() -> ast::ForStmtPtr;
+  auto parseLoopStmt() -> ast::LoopStmtPtr;
+  auto parseBreakStmt() -> ast::BreakStmtPtr;
+  auto parseFuncExprBlockStmt() -> ast::FuncExprBlockStmtPtr;
+  auto parseIfExpr() -> ast::IfExprPtr;
 
 private:
-  std::shared_ptr<err::ErrReporter> reporter; // error reporter
+  lex::token::Token                ctoken;  // current token
+  std::optional<lex::token::Token> latoken; // look ahead token
 
-  std::function<std::expected<lex::token::Token, err::LexErr>()>
-      nextTokenFunc; // 获取下一个 token
-
-  lex::token::Token current;                  // 当前看到的 token
-  std::optional<lex::token::Token> lookahead; // 往后看一个 token
+  lex::base::Lexer&     lexer;
+  sym::SymbolTable&     stable;    // symbol table
+  sem::SemanticChecker& schecker;  // semantic checker
+  err::ErrReporter&     ereporter; // error reporter
 };
 
 } // namespace parser::base

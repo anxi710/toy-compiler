@@ -1,14 +1,12 @@
 #pragma once
 
 #include <cassert>
-#include <memory>
 #include <string>
 #include <unordered_map>
 
-#include "error/err_report.hpp"
 #include "token_type.hpp"
 
-namespace lex::keyword {
+namespace lex::key {
 
 /**
  * @brief   关键字表
@@ -20,15 +18,36 @@ public:
   KeywordTable() = default;
   ~KeywordTable() = default;
 
-  void setErrReporter(std::shared_ptr<err::ErrReporter> rep);
-
 public:
-  bool iskeyword(const std::string &v) const;
-  void addKeyword(std::string n, token::TokenType t);
-  token::TokenType getKeyword(const std::string &v) const;
+  /**
+   * @brief  判断给定的输入值是否是一个关键字
+   * @param  v token value
+   * @return true / false
+   */
+  bool iskeyword(const std::string &v) const {
+    return (keywords.contains(v));
+  }
+
+  /**
+   * @brief 向关键词表中添加一个关键词类型
+   * @param n keyword name
+   * @param t keyword token type
+   */
+  void addKeyword(std::string n, token::TokenType t) {
+    this->keywords.emplace(n, t);
+  }
+
+  /**
+   * @brief  根据输入值获取对应 token type
+   * @param  v token value
+   * @return keyword token type
+   */
+  token::TokenType getKeyword(const std::string &v) const {
+    assert(keywords.contains(v));
+    return keywords.find(v)->second;
+  }
 
 private:
-  std::shared_ptr<err::ErrReporter> reporter; // error reporter
   std::unordered_map<std::string, token::TokenType> keywords; // keyword hash map
 };
 
