@@ -12,3 +12,5 @@
 !src/**/*.cpp
 !src/**/*.hpp
 !Makefile
+!note/*.md
+!docs/*.pdf

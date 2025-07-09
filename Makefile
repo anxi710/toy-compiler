@@ -1,5 +1,5 @@
 # Flags
-CXXFLAGS := -Wall -Wno-register -std=c++23
+CXXFLAGS := -fno-rtti -Wall -Wno-register -std=c++23
 
 # Debug flags
 DEBUG ?= 1
