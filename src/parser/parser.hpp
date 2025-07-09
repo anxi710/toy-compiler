@@ -5,62 +5,68 @@
 #include "ast.hpp"
 #include "lexer.hpp"
 #include "err_report.hpp"
-#include "semantic_checker.hpp"
+#include "semantic_ir_builder.hpp"
 
-namespace par::base {
+namespace par {
 
 class Parser {
 public:
-  Parser(lex::base::Lexer& lexer, sym::SymbolTable& stable,
-    sem::SemanticChecker& schecker, err::ErrReporter& ereporter
-  );
+  Parser(lex::Lexer &lexer, SemanticIRBuilder &builder,
+    err::ErrReporter &reporter
+  ) : lexer(lexer), builder(builder), reporter(reporter) {
+    advance(); // 初始化，使 current 指向第一个 token
+  }
   ~Parser() = default;
 
 public:
   auto parseProgram() -> ast::ProgPtr;
 
 private:
-  auto nextToken() -> std::optional<lex::token::Token>;
+  auto nextToken() -> std::optional<lex::Token>;
   void advance();
-  bool match(lex::token::TokenType type);
-  bool check(lex::token::TokenType type) const;
-  bool checkAhead(lex::token::TokenType type);
-  void expect(lex::token::TokenType type, const std::string &msg);
+  bool match(lex::TokenType type);
+  bool check(lex::TokenType type) const;
+  bool checkAhead(lex::TokenType type);
+  void consume(lex::TokenType type, const std::string &msg);
 
+  auto parseInnerVarDecl() -> std::tuple<bool, std::string>;
   auto parseFuncDecl() -> ast::FuncDeclPtr;
   auto parseFuncHeaderDecl() -> ast::FuncHeaderDeclPtr;
   auto parseArg() -> ast::ArgPtr;
-  auto parseType() -> type::TypePtr;
-  auto parseBlockStmt() -> ast::BlockStmtPtr;
-  auto parseStmtOrExpr() -> ast::StmtOrExprPtr;
-  auto parseRetStmt() -> ast::RetStmtPtr;
+  auto parseType() -> ast::Type;
+  auto parseStmtBlockExpr() -> ast::StmtBlockExprPtr;
+  auto parseStmt() -> ast::StmtPtr;
   auto parseVarDeclStmt() -> ast::VarDeclStmtPtr;
-  auto parseAssignStmt(ast::AssignElemPtr &&lvalue) -> ast::AssignStmtPtr;
-  auto parseAssignElem() -> ast::AssignElemPtr;
-  auto parseExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
+  auto parseExprStmt() -> ast::ExprStmtPtr;
+  auto parseExpr() -> ast::ExprPtr;
+  auto parseRetExpr() -> ast::RetExprPtr;
+  auto parseBreakExpr() -> ast::BreakExprPtr;
+  auto parseContinueExpr() -> ast::ContinueExprPtr;
+  auto parseAssignExpr(ast::AssignElemPtr &&lvalue) -> ast::AssignExprPtr;
+  auto parseAssignElem(std::optional<ast::ExprPtr> val = std::nullopt) -> ast::AssignElemPtr;
+  auto parseArrayAccess(ast::ExprPtr val) -> ast::ArrayAccessPtr;
+  auto parseTupleAccess(ast::ExprPtr val) -> ast::TupleAccessPtr;
+  auto parseValue() -> ast::ExprPtr;
   auto parseCmpExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
   auto parseAddExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
   auto parseMulExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
   auto parseFactor(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
   auto parseElement(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
   auto parseCallExpr() -> ast::CallExprPtr;
-  auto parseIfStmt() -> ast::IfStmtPtr;
-  auto parseElseClause() -> ast::ElseClausePtr;
-  auto parseWhileStmt() -> ast::WhileStmtPtr;
-  auto parseForStmt() -> ast::ForStmtPtr;
-  auto parseLoopStmt() -> ast::LoopStmtPtr;
-  auto parseBreakStmt() -> ast::BreakStmtPtr;
-  auto parseFuncExprBlockStmt() -> ast::FuncExprBlockStmtPtr;
   auto parseIfExpr() -> ast::IfExprPtr;
+  auto parseElseClause() -> ast::ElseClausePtr;
+  auto parseForLoopExpr() -> ast::ForLoopExprPtr;
+  auto parseIterable() -> ast::ExprPtr;
+  auto parseWhileLoopExpr() -> ast::WhileLoopExprPtr;
+  auto parseLoopExpr() -> ast::LoopExprPtr;
 
 private:
-  lex::token::Token                ctoken;  // current token
-  std::optional<lex::token::Token> latoken; // look ahead token
+  lex::Token                cur;  // current token
+  std::optional<lex::Token> la; // look ahead token
 
-  lex::base::Lexer&     lexer;
-  sym::SymbolTable&     stable;    // symbol table
-  sem::SemanticChecker& schecker;  // semantic checker
-  err::ErrReporter&     ereporter; // error reporter
+  lex::Lexer        &lexer;
+  SemanticIRBuilder &builder;  // semantic ir builder
+  err::ErrReporter  &reporter; // error reporter
 };
 
-} // namespace parser::base
+} // namespace par

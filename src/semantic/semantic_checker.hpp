@@ -1,48 +1,51 @@
 #pragma once
 
 #include "ast.hpp"
-#include "position.hpp"
+#include "visitor.hpp"
 #include "err_report.hpp"
-#include "symbol_table.hpp"
+#include "semantic_context.hpp"
 
 namespace sem {
 
-class SemanticChecker {
+class SemanticChecker : public ast::BaseVisitor {
 public:
-  SemanticChecker(sym::SymbolTable &stable, err::ErrReporter &ereporter)
-    : stable(stable), ereporter(ereporter) {}
-  ~SemanticChecker() = default;
+  SemanticChecker(sem::SemanticContext &ctx, err::ErrReporter &reporter)
+    : ctx(ctx), reporter(reporter) {}
+  ~SemanticChecker() override = default;
 
 public:
-  void check(const ast::FuncDecl &func);
-  void check(const ast::FuncHeaderDecl &fhdecl);
-  void check(const ast::BlockStmt &bstmt);
-  void check(const ast::FuncExprBlockStmt &febstmt);
-  void check(const ast::RetStmt &rstmt);
-  void check(const ast::VarDeclStmt &vdstmt);
-  void check(const ast::AssignStmt &astmt);
-  void check(const ast::Variable &var);
-  void check(const ast::ArrayAccess &aacc);
-  void check(const ast::TupleAccess &aacc);
-  void check(const ast::CmpExpr &cexpr);
-  void check(const ast::AriExpr &aexpr);
-  void check(const ast::ArrayElems &aelems);
-  void check(const ast::TupleElems &telems);
-  void check(const ast::BracketExpr &bexpr);
-  void check(const ast::Factor &factor);
-  void check(const ast::Number &num);
-  void check(const ast::CallExpr &cexpr);
-  void check(const ast::IfStmt &istmt);
-  void check(const ast::ElseClause &eclause);
-  void check(const ast::WhileStmt &wstmt);
-  void check(const ast::ForStmt &fstmt);
-  void check(const ast::LoopStmt &lstmt);
-  void check(const ast::BreakStmt &bstmt);
-  void check(const ast::IfExpr &iexpr);
+  void visit(ast::Prog &prog) override;
+  void visit(ast::FuncDecl &fdecl) override;
+  void visit(ast::FuncHeaderDecl &fhdecl) override;
+  void visit(ast::Arg &arg) override;
+  void visit(ast::StmtBlockExpr &sbexpr) override;
+  void visit(ast::VarDeclStmt &vdstmt) override;
+  void visit(ast::ExprStmt &estmt) override;
+  void visit(ast::RetExpr &rexpr) override;
+  void visit(ast::AssignExpr &aexpr) override;
+  void visit(ast::AssignElem &aelem) override;
+  void visit(ast::Variable &var) override;
+  void visit(ast::ArrayAccess &aacc) override;
+  void visit(ast::TupleAccess &tacc) override;
+  void visit(ast::CmpExpr &cexpr) override;
+  void visit(ast::AriExpr &aexpr) override;
+  void visit(ast::ArrayElems &aelems) override;
+  void visit(ast::TupleElems &telems) override;
+  void visit(ast::Number &num) override;
+  void visit(ast::BracketExpr &bexpr) override;
+  void visit(ast::CallExpr &cexpr) override;
+  void visit(ast::IfExpr &iexpr) override;
+  void visit(ast::ElseClause &eclause) override;
+  void visit(ast::WhileLoopExpr&wlexpr) override;
+  void visit(ast::ForLoopExpr &flexpr) override;
+  void visit(ast::LoopExpr&lexpr) override;
+  void visit(ast::BreakExpr &bstmt) override;
+  void visit(ast::ContinueExpr &cstmt) override;
+  void visit(ast::EmptyStmt &estmt) override;
 
 private:
-  sym::SymbolTable&      stable;    // Symbol Table
-  err::ErrReporter&      ereporter; // Error Reporter
+  SemanticContext  &ctx;      // semantic context
+  err::ErrReporter &reporter; // error reporter
 };
 
-} // namespace semantic
+} // namespace sem

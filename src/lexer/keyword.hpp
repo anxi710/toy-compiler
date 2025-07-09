@@ -1,12 +1,11 @@
 #pragma once
 
 #include <cassert>
-#include <string>
 #include <unordered_map>
 
 #include "token_type.hpp"
 
-namespace lex::key {
+namespace lex {
 
 /**
  * @brief   关键字表
@@ -30,11 +29,11 @@ public:
 
   /**
    * @brief 向关键词表中添加一个关键词类型
-   * @param n keyword name
-   * @param t keyword token type
+   * @param name keyword name
+   * @param type keyword token type
    */
-  void addKeyword(std::string n, token::TokenType t) {
-    this->keywords.emplace(n, t);
+  void addKeyword(std::string name, TokenType type) {
+    this->keywords.emplace(name, type);
   }
 
   /**
@@ -42,13 +41,13 @@ public:
    * @param  v token value
    * @return keyword token type
    */
-  token::TokenType getKeyword(const std::string &v) const {
+  TokenType getKeyword(const std::string &v) const {
     assert(keywords.contains(v));
     return keywords.find(v)->second;
   }
 
 private:
-  std::unordered_map<std::string, token::TokenType> keywords; // keyword hash map
+  std::unordered_map<std::string, TokenType> keywords; // keyword hash map
 };
 
-} // namespace lex::keyword
+} // namespace lex

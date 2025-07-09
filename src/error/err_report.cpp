@@ -1,17 +1,17 @@
-#include "err_report.hpp"
-
 #include <cassert>
-#include <iostream>
 #include <sstream>
+#include <iostream>
+
+#include "err_report.hpp"
 
 namespace err {
 
 // 控制字符
-static inline const std::string BOLD   = "\033[1m";
-static inline const std::string RESET  = "\033[0m";
-static inline const std::string RED    = "\033[1;31m";
-static inline const std::string BLUE   = "\033[1;34m";
-static inline const std::string YELLOW = "\033[1;33m";
+static inline constexpr std::string BOLD   = "\033[1m";
+static inline constexpr std::string RESET  = "\033[0m";
+static inline constexpr std::string RED    = "\033[1;31m";
+static inline constexpr std::string BLUE   = "\033[1;34m";
+static inline constexpr std::string YELLOW = "\033[1;33m";
 
 /*---------------- LexErr ----------------*/
 
@@ -23,21 +23,21 @@ void
 ErrReporter::displayUnknownType(const LexErr &err) const
 {
   std::cerr << BOLD << YELLOW << "warning[UnknownToken]" << RESET << BOLD
-            << ": 识别到未知 token '" << err.token << "'" << RESET << std::endl;
+    << std::format(": 识别到未知 token '{}'", err.token) << RESET << std::endl;
 
-  std::cerr << BLUE << " --> " << RESET << "<row: " << err.row + 1
-            << ", col: " << err.col + 1 << ">" << std::endl;
+  std::cerr << BLUE << " --> " << RESET
+    << std::format("<row: {}, col: {}>", err.pos.row + 1, err.pos.col + 1)
+    << std::endl;
 
   std::cerr << BLUE << "  |  " << std::endl
-            << BLUE << " " << err.row + 1 << " | " << RESET
-            << this->text[err.row] << std::endl;
+    << BLUE << " " << err.pos.row + 1 << " | " << RESET
+    << this->text[err.pos.row] << std::endl;
 
   std::ostringstream oss;
-  oss << " " << err.row + 1 << " | ";
-  int delta = oss.str().length() + err.col - 3;
+  std::print(oss, " {} | ", err.pos.row + 1);
+  int delta = oss.str().length() + err.pos.col - 3;
   std::cerr << BLUE << "  |" << std::string(delta, ' ') << "^" << RESET
-            << std::endl
-            << std::endl;
+    << std::endl << std::endl;
 }
 
 /**
@@ -72,54 +72,55 @@ ErrReporter::displayLexErr(const LexErr &err) const
 std::pair<std::string, std::string>
 displaySemErrType(SemErrType type)
 {
+  //DEBUG
   switch (type) {
-    case SemErrType::ArgCountMismatch:
+    case SemErrType::ARG_CNT_MISMATCH:
       return {
         "ArgMismatch",
         "函数参数个数不匹配"
       };
-    case SemErrType::VoidFuncReturnValue:
-    case SemErrType::FuncReturnTypeMismatch:
+    case SemErrType::VOID_FUNC_RET_VAL:
+    case SemErrType::RETTYPE_MISMATCH:
       return {
         "FuncReturnMismatch",
         "函数返回值类型不匹配"
       };
-    case SemErrType::MissingReturnValue:
+    case SemErrType::MISSING_RETVAL:
       return {
         "MissingReturnValue",
         "函数有返回值但未返回任何值"
       };
-    case SemErrType::UndefinedFunctionCall:
+    case SemErrType::CALL_UNDEFINED_FUNC:
       return {
         "UndefinedFunction",
         "函数未定义"
       };
-    case SemErrType::UndeclaredVariable:
+    case SemErrType::UNDECLARED_VAR:
       return {
         "UndeclaredVariable",
         "变量未声明"
       };
-    case SemErrType::UninitializedVariable:
+    case SemErrType::UNINITIALIZED_VAR:
       return {
         "UninitializedVariable",
         "变量未初始化"
       };
-    case SemErrType::AssignToNonVariable:
+    case SemErrType::ASSIGN_NOT_VAR:
       return {
         "InvalidAssignment",
         "无效赋值语句"
       };
-    case SemErrType::AssignToUndeclaredVar:
+    case SemErrType::ASSIGN_UNDECLARED_VAR:
       return {
         "InvalidAssignment",
         "无效赋值语句"
       };
-    case SemErrType::TypeInferenceFailure:
+    case SemErrType::TYPE_INFER_FAILURE:
       return {
         "TypeInferenceFailure",
         "变量无法通过自动类型推导确定类型"
       };
-    case SemErrType::TypeMismatch:
+    case SemErrType::TYPE_MISMATCH:
       return {
         "TypeMismatch",
         "变量类型不匹配"
@@ -135,25 +136,27 @@ void
 ErrReporter::displaySemanticErr(const SemErr &err) const
 {
   auto pair = displaySemErrType(err.type);
-  std::cerr << BOLD << RED << "Err[" << pair.first << "]" << RESET << BOLD
-            << ": " << pair.second << RESET << std::endl;
+  std::cerr << BOLD << RED << std::format("Err[{}]", pair.first) << RESET << BOLD
+    << ": " << pair.second << RESET << std::endl;
 
-  std::cerr << BLUE << "--> " << RESET << "scope: " << err.scope_name
-            << " <row: " << err.row + 1 << ", col: " << err.col + 1 << ">"
-            << std::endl;
+  std::cerr << BLUE << "--> " << RESET <<
+    std::format(
+      "scope: {} <row: {}, col: {}>",
+      err.scope_name, err.pos.row + 1, err.pos.col + 1
+    ) << std::endl;
 
   std::cerr << BLUE << "  |  " << std::endl
-            << BLUE << " " << err.row + 1 << " | " << RESET
-            << this->text[err.row] << std::endl;
+    << BLUE << " " << err.pos.row + 1 << " | " << RESET
+    << this->text[err.pos.row] << std::endl;
 
   std::ostringstream oss;
-  oss << " " << err.row + 1 << " | ";
-  int delta = oss.str().length() + err.col - 3;
+  std::print(oss, " {} | ", err.pos.row + 1);
+  int delta = oss.str().length() + err.pos.col - 3;
   std::cerr << BLUE << "  |" << std::string(delta, ' ') << "^" << RESET
-            << std::endl
-            << std::endl;
+    << std::endl << std::endl;
 
-  std::cerr << "    Details: " << err.msg << std::endl << std::endl;
+  std::cerr << std::format("    Details: {}", err.msg)
+    << std::endl << std::endl;
 }
 
 /*---------------- SemErr ----------------*/
@@ -176,67 +179,43 @@ ErrReporter::ErrReporter(const std::string &t)
  * @brief 报告词法错误
  * @param type      词法错误类型
  * @param msg       错误信息
- * @param r         错误发生的行数
- * @param c         错误发生的列数
  * @param token     错误发生的 token
- * @param terminate 是否终止
  */
 void
 ErrReporter::report(LexErrType type, const std::string &msg,
-  std::size_t r, std::size_t c, const std::string &token, bool terminate)
+  util::Position pos, const std::string &token)
 {
-  lex_errs.emplace_back(type, msg, r, c, token);
-
-  if (terminate)
-  {
-  }
-}
-
-void
-ErrReporter::report(const LexErr &le, bool terminate)
-{
-  lex_errs.push_back(le);
-
-  if (terminate)
-  {
-  }
+  lex_errs.emplace_back(type, msg, pos, token);
 }
 
 /**
  * @brief 报告语法错误
  * @param type      词法错误类型
  * @param msg       错误信息
- * @param r         错误发生的行数
- * @param c         错误发生的列数
+ * @param pos       错误发生的位置
  * @param token     错误发生的 token
- * @param terminate 是否终止
  */
 void
 ErrReporter::report(ParErrType type, const std::string &msg,
-  std::size_t r, std::size_t c, const std::string &token)
+  util::Position pos, const std::string &token)
 {
-  par_errs.emplace_back(type, msg, r, c, token);
+  par_errs.emplace_back(type, msg, pos, token);
 }
 
 /**
  * @brief 报告语义错误
  * @param type       语义错误类型
  * @param msg        错误信息
- * @param r          错误发生的行数
- * @param c          错误发生的列数
+ * @param pos       错误发生的位置
  * @param scope_name 作用域
- * @param terminate  是否终止
  */
 void
 ErrReporter::report(SemErrType type, const std::string &msg,
-  std::size_t r, std::size_t c, const std::string &scope_name)
+  util::Position pos, const std::string &scope_name)
 {
-  sem_errs.emplace_back(type, msg, r, c, scope_name);
+  sem_errs.emplace_back(type, msg, pos, scope_name);
 }
 
-/**
- * @brief 处理所有词法错误
- */
 void
 ErrReporter::displayLexErrs() const
 {
@@ -245,9 +224,6 @@ ErrReporter::displayLexErrs() const
   }
 }
 
-/**
- * @brief 处理所有语义错误
- */
 void
 ErrReporter::displaySemanticErrs() const
 {
@@ -257,36 +233,29 @@ ErrReporter::displaySemanticErrs() const
 }
 
 
-[[nodiscard]] bool
+bool
 ErrReporter::hasLexErr() const
 {
   return !lex_errs.empty();
 }
 
-[[nodiscard]] bool
+bool
 ErrReporter::hasParErr() const
 {
   return !par_errs.empty();
 }
 
-[[nodiscard]] bool
+bool
 ErrReporter::hasSemErr() const
 {
   return !sem_errs.empty();
 }
 
-[[nodiscard]] bool
+bool
 ErrReporter::hasErrs() const
 {
   return !(lex_errs.empty() && par_errs.empty() && sem_errs.empty());
 }
-
-[[noreturn]] void
-ErrReporter::terminateProg()
-{
-  exit(1);
-}
-
 
 /*---------------- ErrReporter ----------------*/
 

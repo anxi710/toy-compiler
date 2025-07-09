@@ -1,7 +1,8 @@
+#include <print>
 #include <fstream>
 #include <sstream>
-#include <iostream>
 
+#include "panic.hpp"
 #include "preproc.hpp"
 #include "compiler.hpp"
 
@@ -13,15 +14,14 @@ Compiler::Compiler(const std::string &file)
   std::ifstream in;
   in.open(file);
   if (!in) {
-    std::cerr << "无法打开输入文件" << std::endl;
-    exit(1);
+    util::runtime_error("无法打开输入文件");
   }
 
   std::ostringstream oss;
   oss << in.rdbuf();
 
   // 初始化错误报告器
-  ereporter = std::make_unique<err::ErrReporter>(oss.str()); // 保留原始文本信息
+  reporter = std::make_unique<err::ErrReporter>(oss.str()); // 保留原始文本信息
 
   // 删除注释
   std::istringstream iss{preproc::removeAnnotations(oss.str())};
@@ -33,14 +33,14 @@ Compiler::Compiler(const std::string &file)
   }
 
   if (!iss.eof()) {
-    std::cerr << "编译器初始化时，文件读取错误" << std::endl;
+    util::runtime_error("编译器初始化时，文件读取错误");
   }
 
   // 初始化各组件
-  lexer    = std::make_unique<lex::base::Lexer>(text, *ereporter);
-  stable   = std::make_unique<sym::SymbolTable>();
-  schecker = std::make_unique<sem::SemanticChecker>(*stable, *ereporter);
-  parser   = std::make_unique<par::base::Parser>(*lexer, *stable, *schecker, *ereporter);
+  this->lexer   = std::make_unique<lex::Lexer>(text, *reporter);
+  this->symtab  = std::make_unique<sym::SymbolTable>();
+  this->builder = std::make_unique<par::SemanticIRBuilder>(*symtab, *reporter);
+  this->parser  = std::make_unique<par::Parser>(*lexer, *builder, *reporter);
 }
 
 } // namespace cpr

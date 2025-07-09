@@ -1,13 +1,10 @@
 #pragma once
 
-#include <memory>
-#include <string>
 #include <vector>
 #include <optional>
 
 #include "token.hpp"
 #include "keyword.hpp"
-#include "position.hpp"
 
 namespace err {
 
@@ -16,33 +13,51 @@ class ErrReporter;
 
 } // namespace err
 
-namespace lex::base {
+namespace lex {
 
-// abstract class lexer: define some utilities and data structure.
 class Lexer {
 public:
-  Lexer(std::vector<std::string> text, err::ErrReporter &ereporter);
+  Lexer(std::vector<std::string> text, err::ErrReporter &reporter)
+    : text(std::move(text)), reporter(reporter)
+  {
+    // 初始化关键字表
+    this->keytab.addKeyword("if",       TokenType::IF);
+    this->keytab.addKeyword("fn",       TokenType::FN);
+    this->keytab.addKeyword("in",       TokenType::IN);
+    this->keytab.addKeyword("i32",      TokenType::I32);
+    this->keytab.addKeyword("bool",     TokenType::BOOL);
+    this->keytab.addKeyword("let",      TokenType::LET);
+    this->keytab.addKeyword("mut",      TokenType::MUT);
+    this->keytab.addKeyword("for",      TokenType::FOR);
+    this->keytab.addKeyword("loop",     TokenType::LOOP);
+    this->keytab.addKeyword("else",     TokenType::ELSE);
+    this->keytab.addKeyword("break",    TokenType::BREAK);
+    this->keytab.addKeyword("while",    TokenType::WHILE);
+    this->keytab.addKeyword("return",   TokenType::RETURN);
+    this->keytab.addKeyword("continue", TokenType::CONTINUE);
+    this->keytab.addKeyword("true",     TokenType::TRUE);
+    this->keytab.addKeyword("false",    TokenType::FALSE);
+  }
   virtual ~Lexer() = default;
 
 public:
   void reset(const util::Position &pos);
-  void setErrReporter(std::shared_ptr<err::ErrReporter> p_ereporter);
 
-  auto nextToken() -> std::optional<token::Token>;
+  auto nextToken() -> std::optional<Token>;
 
 private:
   void shiftPos(std::size_t delta);
 
-  auto matchThroughRE(const std::string &view) -> std::optional<token::Token>;
-  auto matchThroughDFA(const std::string &view) -> std::optional<token::Token>;
+  auto matchThroughRE(const std::string &view) -> std::optional<Token>;
+  auto matchThroughDFA(const std::string &view) -> std::optional<Token>;
 
 private:
   char peek; // the next character to be scanned
   util::Position pos; // the next position to be scanned
   std::vector<std::string> text; // text to be scanned
 
-  key::KeywordTable keyword_table;
-  err::ErrReporter  &ereporter; // Error Reporter
+  KeywordTable keytab;
+  err::ErrReporter  &reporter; // Error Reporter
 };
 
-} // namespace lex::base
+} // namespace lex

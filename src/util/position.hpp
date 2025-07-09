@@ -1,5 +1,7 @@
 #pragma once
 
+#include <format>
+#include <string>
 #include <cstddef>
 
 namespace util {
@@ -13,6 +15,22 @@ struct Position {
   Position(const Position &other) = default;
 
   Position& operator=(const Position &rhs) = default;
+  Position operator+(const Position &rhs) const {
+    return {row + rhs.row, col + rhs.col};
+  }
 };
 
 } // namespace util
+
+namespace std {
+
+template<>
+struct formatter<util::Position> : formatter<std::string> {
+  auto format(const util::Position &pos, format_context &ctx) const {
+    return std::formatter<std::string>::format(
+      std::format("({}, {})", pos.row, pos.col), ctx
+    );
+  }
+};
+
+} // namespace std

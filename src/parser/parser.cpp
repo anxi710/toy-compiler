@@ -3,19 +3,10 @@
 #include <cassert>
 
 #include "panic.hpp"
-#include "err_report.hpp"
-#include "symbol_table.hpp"
 
-using namespace lex::token;
+using namespace lex;
 
-namespace par::base {
-
-Parser::Parser(lex::base::Lexer& lexer, sym::SymbolTable& stable,
-  sem::SemanticChecker& schecker, err::ErrReporter& ereporter
-) : lexer(lexer), stable(stable), schecker(schecker), ereporter(ereporter)
-{
-  advance(); // 初始化，使 current 指向第一个 token
-}
+namespace par {
 
 std::optional<Token>
 Parser::nextToken()
@@ -24,28 +15,20 @@ Parser::nextToken()
     return token.value();
   }
   // 如果识别到未知 token，则发生了词法分析错误，且需要立即终止
-  ereporter.terminateProg();
+  util::terminate();
 }
 
-/**
- * @brief 向前扫描一个 token
- */
 void
 Parser::advance()
 {
-  if (latoken.has_value()) {
-    ctoken = latoken.value();
-    latoken.reset(); // 清除 latoken 中的值
+  if (la.has_value()) {
+    cur = la.value();
+    la.reset(); // 清除 la 中的值
   } else {
-    ctoken = nextToken().value();
+    cur = nextToken().value();
   }
 }
 
-/**
- * @brief  匹配当前 token，并向前扫描一个 token
- * @param  type 需匹配的 token 类型
- * @return 是否成功匹配
- */
 bool
 Parser::match(TokenType type)
 {
@@ -56,46 +39,28 @@ Parser::match(TokenType type)
   return false;
 }
 
-/**
- * @brief  检查当前看到的 token 是否存在，如果存在判断其类型是否为给定值
- * @param  type 指定的 token 类型
- * @return 是否通过检查
- */
 bool
 Parser::check(TokenType type) const
 {
-  return ctoken.type == type;
+  return cur.type == type;
 }
 
-/**
- * @brief  向前检查一个 token，判断其类型是否为给定值
- * @param  type 指定的 token 类型
- * @return 是否通过检查
- */
 bool
 Parser::checkAhead(TokenType type)
 {
-  if (!latoken.has_value()) {
-    latoken = nextToken();
+  if (!la.has_value()) {
+    la = nextToken();
   }
-  return latoken.has_value() && latoken.value().type == type;
+  return la.has_value() && la.value().type == type;
 }
 
-/**
- * @brief 匹配期望的 token，如果未匹配成功则抛出 runtime error
- * @param type 期望的 token 类型
- * @param msg  错误信息
- */
 void
-Parser::expect(TokenType type, const std::string &msg)
+Parser::consume(TokenType type, const std::string &msg)
 {
   if (!match(type)) {
-    ereporter.report(
+    reporter.report(
       err::ParErrType::UNEXPECT_TOKEN,
-      msg,
-      ctoken.pos.row,
-      ctoken.pos.col,
-      ctoken.value
+      msg, cur.pos, cur.value
     );
   }
 }
@@ -104,40 +69,50 @@ ast::ProgPtr
 Parser::parseProgram()
 {
   // Prog -> (FuncDecl)*
+
   std::vector<ast::DeclPtr> decls;
   while (check(TokenType::FN)) {
     decls.push_back(parseFuncDecl());
   }
 
-  return std::make_shared<ast::Prog>(decls);
+  auto prog = std::make_shared<ast::Prog>(decls);
+  builder.build(*prog);
+  return prog;
 }
 
 ast::FuncDeclPtr
 Parser::parseFuncDecl()
 {
   // FuncDecl -> FuncHeaderDecl BlockStmt
+
+  util::Position pos = cur.pos;
   auto header = parseFuncHeaderDecl();
-  auto body   = parseBlockStmt();
+  auto body   = parseStmtBlockExpr();
+
+  builder.ctx->exitScope();
 
   auto func = std::make_shared<ast::FuncDecl>(header, body);
-  schecker.check(*func);
-
+  func->pos = pos;
+  builder.build(*func);
   return func;
 }
 
 ast::FuncHeaderDeclPtr
 Parser::parseFuncHeaderDecl()
 {
-  // FuncHeaderDecl -> fn <ID> ( (arg)* ) (-> VarType)?
-  expect(TokenType::FN, "Expected 'fn'");
+  // FuncHeaderDecl -> fn <ID> ( (arg)? (, arg)* ) (-> VarType)?
 
-  std::string    name = ctoken.value;
-  util::Position pos  = ctoken.pos;
-  expect(TokenType::ID, "Expected '<ID>'");
+  consume(TokenType::FN, "Expect 'fn'");
 
-  expect(TokenType::LPAREN, "Expected '('");
+  std::string    name = cur.value;
+  util::Position pos  = cur.pos;
+  consume(TokenType::ID, "Expect '<ID>'");
 
-  // (arg)*
+  builder.ctx->enterFunc(name, pos); // 必须先进入作用域！！！
+
+  consume(TokenType::LPAREN, "Expect '('");
+
+  // (arg)? (, arg)*
   std::vector<ast::ArgPtr> argv{};
   while (!check(TokenType::RPAREN)) {
     argv.push_back(parseArg());
@@ -147,62 +122,83 @@ Parser::parseFuncHeaderDecl()
     advance();
   }
 
-  expect(TokenType::RPAREN, "Expected ')'");
+  consume(TokenType::RPAREN, "Expect ')'");
 
   // (-> VarType)?
-  std::optional<type::TypePtr> rtype = std::nullopt;
+  ast::Type type{type::TypeFactory::UNIT_TYPE};
   if (check(TokenType::ARROW)) {
     advance();
-    rtype = parseType();
+    type = parseType();
   }
 
-  auto fhdecl = std::make_shared<ast::FuncHeaderDecl>(pos, name, argv, rtype);
-  schecker.check(*fhdecl);
+  auto fhdecl = std::make_shared<ast::FuncHeaderDecl>(name, argv, type);
+  fhdecl->pos = pos;
+  builder.build(*fhdecl);
   return fhdecl;
 }
 
 ast::ArgPtr
 Parser::parseArg()
 {
+  // arg -> (mut)? <ID> : Type
   bool mut = false;
   if (check(TokenType::MUT)) {
     mut = true;
     advance();
   }
 
-  std::string    name = ctoken.value;
-  util::Position pos  = ctoken.pos;
-  expect(TokenType::ID, "Expected '<ID>'");
-  expect(TokenType::COLON, "Expected ':'");
+  std::string    name = cur.value;
+  util::Position pos  = cur.pos;
+  consume(TokenType::ID, "Expect '<ID>'");
+  consume(TokenType::COLON, "Expect ':'");
 
   auto type = parseType();
 
-  return std::make_shared<ast::Arg>(pos, mut, name, type);
+  auto arg = std::make_shared<ast::Arg>(name, mut, type);
+  arg->pos = pos;
+  builder.build(*arg);
+  return arg;
 }
 
-type::TypePtr
+ast::Type
 Parser::parseType()
 {
-  if (check(TokenType::LBRACK)) {
+  // Type -> i32
+  //       | [ Type ; <NUM> ]
+  //       | ( (Type)? (, Type)* )
+  // tips: () is unit type
+
+  ast::Type type;
+  type.pos = cur.pos;
+  if (check(TokenType::I32)) {
     advance();
-    auto etype = parseType();
-
-    expect(TokenType::SEMICOLON, "Expected ';'");
-
-    int cnt = std::stoi(ctoken.value);
-    expect(TokenType::INT, "Expected <NUM>");
-    expect(TokenType::RBRACK, "Expected ']'");
-
-    return std::make_shared<type::ArrayType>(cnt, etype);
+    type.type = type::TypeFactory::INT_TYPE;
+    return type;
   }
 
+  // [ Type ; <NUM> ]
+  if (check(TokenType::LBRACK)) {
+    advance();
+    auto etype = parseType().type;
+
+    consume(TokenType::SEMICOLON, "Expect ';'");
+
+    int size = std::stoi(cur.value);
+    consume(TokenType::INT, "Expect <NUM>");
+    consume(TokenType::RBRACK, "Expect ']'");
+
+    type.type = builder.ctx->types.getArray(size, etype);
+    return type;
+  }
+
+  // ( (Type)? (, Type)* )
   if (check(TokenType::LPAREN)) {
     advance();
 
-    bool is_tuple;
+    bool is_tuple = false;
     std::vector<type::TypePtr> etypes;
     while (!check(TokenType::RPAREN)) {
-      etypes.push_back(parseType());
+      etypes.push_back(parseType().type);
       if (!check(TokenType::COMMA)) {
         break;
       }
@@ -210,70 +206,174 @@ Parser::parseType()
       is_tuple = true;
     }
 
-    expect(TokenType::RPAREN, "Expected ')'");
+    consume(TokenType::RPAREN, "Expect ')'");
+
     if (0 == etypes.size()) {
-      //DEBUG Error Reporter
-      throw std::runtime_error{"Incorrect variable type."};
+      // ()
+      type.type = type::TypeFactory::UNIT_TYPE;
+      return type;
     }
     if (is_tuple) {
-      return std::make_shared<type::TupleType>(etypes);
+      // ( Type , (Type (, Type)*)? )
+      type.type = builder.ctx->types.getTuple(etypes);
+      return type;
     }
-    return etypes[0];
+    // ( Type )
+    type.type = etypes[0];
+    return type;
   }
 
-  if (check(TokenType::I32)) {
-    advance();
-    return std::make_shared<type::IntType>();
-  }
-
-  //TODO error report
+  //TODO: error report
   util::unreachable("par::Parse::parseType()");
 }
 
-ast::BlockStmtPtr
-Parser::parseBlockStmt()
+ast::StmtBlockExprPtr
+Parser::parseStmtBlockExpr()
 {
-  // BlockStmt -> { (Stmt)* }; FuncExprBlockStmt -> { (Stmt)* Expr }
-  expect(TokenType::LBRACE, "Expected '{'");
+  // StmtBlockExpr -> { (Stmt)* }
 
-  ast::ExprPtr expr;
+  util::Position pos = cur.pos;
+  consume(TokenType::LBRACE, "Expect '{'");
+
   std::vector<ast::StmtPtr> stmts{};
-
-  bool is_func_expr = false;
   while (!check(TokenType::RBRACE)) {
-    ast::StmtOrExprPtr node = parseStmtOrExpr();
-    if (node->stmt.has_value()) {
-      stmts.push_back(std::move(node->stmt.value()));
-    } else {
-      expr = std::move(node->expr.value());
-      is_func_expr = true;
-      break;
-    }
+    auto stmt = parseStmt();
   }
 
-  expect(TokenType::RBRACE, "Expected '}'");
-  if (is_func_expr) {
-    auto febstmt = std::make_shared<ast::FuncExprBlockStmt>(stmts, expr);
-    schecker.check(*febstmt);
-    return febstmt;
-  }
+  consume(TokenType::RBRACE, "Expect '}'");
 
-  auto bstmt = std::make_shared<ast::BlockStmt>(stmts);
-  schecker.check(*bstmt);
-  return bstmt;
+  auto sbexpr = std::make_shared<ast::StmtBlockExpr>(stmts);
+  sbexpr->pos = pos;
+  builder.build(*sbexpr);
+  return sbexpr;
 }
 
-ast::StmtOrExprPtr
-Parser::parseStmtOrExpr()
+ast::StmtPtr
+Parser::parseStmt()
 {
-  ast::StmtOrExprPtr node;
-  if (check(TokenType::LET)) {
-    node->stmt = parseVarDeclStmt();
-  } else if (check(TokenType::RETURN)) {
-    node->stmt = parseRetStmt();
+  // Stmt -> EmptyStmt
+  //       | VarDeclStmt
+  //       | ExprStmt
+
+  ast::StmtPtr stmt;
+  if (check(TokenType::SEMICOLON)) {
+    // EmptyStmt -> ;
+    advance();
+    stmt = std::make_shared<ast::EmptyStmt>();
+  } else if (check(TokenType::LET)) {
+    // VarDeclStmt -> let (mut)? <ID> (: Type)? (= Expr)? ;
+    stmt = parseVarDeclStmt();
+  } else {
+    // other case
+    stmt = parseExprStmt();
+  }
+
+  return stmt;
+}
+
+ast::VarDeclStmtPtr
+Parser::parseVarDeclStmt()
+{
+  // VarDeclStmt -> let (mut)? <ID> (: Type)? (= Expr)? ;
+
+  consume(TokenType::LET, "Expect 'let'");
+
+  // (mut)?
+  bool mut = false;
+  if (check(TokenType::MUT)) {
+    mut = true;
+    advance();
+  }
+
+  util::Position pos  = cur.pos;
+  std::string    name = cur.value;
+  consume(TokenType::ID, "Expect '<ID>'");
+
+  // (: Type)?
+  ast::Type type{type::TypeFactory::UNKNOWN_TYPE};
+  if (check(TokenType::COLON)) {
+    advance();
+    type = parseType();
+  }
+
+  // (= Expr)?
+  std::optional<ast::ExprPtr> expr = std::nullopt;
+  if (check(TokenType::ASSIGN)) {
+    advance();
+    expr = parseExpr();
+  }
+
+  consume(TokenType::SEMICOLON, "Expect ';'");
+
+  auto vdstmt = std::make_shared<ast::VarDeclStmt>(mut, name, type, expr);
+  vdstmt->pos = pos;
+  builder.build(*vdstmt);
+  return vdstmt;
+}
+
+ast::ExprStmtPtr
+Parser::parseExprStmt()
+{
+  // ExprStmt -> Expr (;)?
+
+  // 表达式语句贪婪匹配一个 ;
+  // 若有则匹配，若没有则不匹配
+  util::Position pos = cur.pos;
+  auto expr = parseExpr();
+  auto estmt = std::make_shared<ast::ExprStmt>(expr);
+  if (check(TokenType::SEMICOLON)) {
+    //TODO: 上下文
+    advance();
+  } else {
+  }
+
+  estmt->pos = pos;
+  builder.build(*estmt);
+  return estmt;
+}
+
+ast::ExprPtr
+Parser::parseExpr()
+{
+  // Expr -> RetExpr
+  //       | BreakExpr
+  //       | ContinueExpr
+  //       | IfExpr
+  //       | LoopExpr
+  //       | WhileLoopExpr
+  //       | ForLoopExpr
+  //       | StmtBlockExpr
+  //       | AssignExpr
+  //       | CmpExpr
+
+  ast::ExprPtr expr;
+  if (check(TokenType::RETURN)) {
+    // RetExpr -> return (Expr)? ;
+    expr = parseRetExpr();
+  } else if (check(TokenType::BREAK)) {
+    // BreakExpr -> break (Expr)? ;
+    expr = parseBreakExpr();
+  } else if (check(TokenType::CONTINUE)) {
+    // ContinueExpr -> continue ;
+    expr = parseContinueExpr();
+  } else if (check(TokenType::IF)) {
+    // IfExpr -> if ...
+    expr = parseIfExpr();
+  } else if (check(TokenType::WHILE)) {
+    // WhileLoopExpr -> while ...
+    expr = parseWhileLoopExpr();
+  } else if (check(TokenType::FOR)) {
+    // ForLoopExpr -> for ...
+    expr = parseForLoopExpr();
+  } else if (check(TokenType::LOOP)) {
+    // LoopExpr -> loop ...
+    expr = parseLoopExpr();
+  }else if (check(TokenType::LBRACE)) {
+    // StmtBlocKExpr -> { (Stmt)* }
+    expr = parseStmtBlockExpr();
   } else if (check(TokenType::ID)) {
     if (checkAhead(TokenType::LPAREN)) {
-      node->expr = parseCallExpr();
+      expr = parseCallExpr();
     }
     /*
      * x, x[idx], x.idx
@@ -281,155 +381,200 @@ Parser::parseStmtOrExpr()
      */
     auto elem = parseAssignElem();
     if (check(TokenType::ASSIGN)) {
-      node->stmt = parseAssignStmt(std::move(elem));
+      expr = parseAssignExpr(std::move(elem));
     } else {
-      node->expr = parseExpr(elem);
+      expr = parseCmpExpr(elem);
     }
   } else if (check(TokenType::INT) || check(TokenType::LPAREN)) {
-    node->expr = parseExpr();
-  } else if (check(TokenType::IF)) {
-    node->stmt = parseIfStmt();
-  } else if (check(TokenType::WHILE)) {
-    node->stmt = parseWhileStmt();
-  } else if (check(TokenType::FOR)) {
-    node->stmt = parseForStmt();
-  } else if (check(TokenType::LOOP)) {
-    node->stmt = parseLoopStmt();
-  } else if (check(TokenType::BREAK)) {
-    node->stmt = parseBreakStmt();
-  } else if (check(TokenType::CONTINUE)) {
-    advance();
-    expect(TokenType::SEMICOLON, "Expected ';' after Continue");
-    node->stmt = std::make_shared<ast::ContinueStmt>();
-  } else if (check(TokenType::SEMICOLON)) {
-    advance();
-    node->stmt = std::make_shared<ast::NullStmt>();
+    expr = parseCmpExpr();
+  } else {
+    //TODO: error
   }
 
-  if (check(TokenType::COLON) && node->expr.has_value()) {
-    node->stmt = std::make_shared<ast::ExprStmt>(node->expr.value());
-    node->expr.reset();
-  }
-
-  return node;
+  return expr;
 }
 
-ast::RetStmtPtr
-Parser::parseRetStmt()
+ast::RetExprPtr
+Parser::parseRetExpr()
 {
-  util::Position pos = ctoken.pos;
-  expect(TokenType::RETURN, "Expected 'return'");
+  // RetExpr -> return (Expr)?
+  util::Position pos = cur.pos;
+  consume(TokenType::RETURN, "Expect 'return'");
 
   std::optional<ast::ExprPtr> retval = std::nullopt;
   if (!check(TokenType::SEMICOLON)) {
-    retval = parseCmpExpr();
+    retval = parseExpr();
   }
 
-  expect(TokenType::SEMICOLON, "Expected ';'");
-
-  auto rstmt = std::make_shared<ast::RetStmt>(pos, retval);
-  schecker.check(*rstmt);
-  return rstmt;
+  auto rexpr = std::make_shared<ast::RetExpr>(retval);
+  rexpr->pos = pos;
+  builder.build(*rexpr);
+  return rexpr;
 }
 
-ast::VarDeclStmtPtr
-Parser::parseVarDeclStmt()
+ast::BreakExprPtr
+Parser::parseBreakExpr()
 {
-  // VarDeclStmt -> let (mut)? <ID> (: VarType)? (= Expr);
-  expect(TokenType::LET, "Expected 'let'");
+  // BreakExpr -> break (Expr)?
+  util::Position pos = cur.pos;
+  consume(TokenType::BREAK, "Expect 'break'");
 
-  bool mut = false;
-  if (check(TokenType::MUT)) {
-    mut = true;
-    advance();
+  std::optional<ast::ExprPtr> value = std::nullopt;
+  if (!check(TokenType::SEMICOLON)) {
+    value = parseExpr();
   }
 
-  util::Position pos  = ctoken.pos;
-  std::string    name = ctoken.value;
-  expect(TokenType::ID, "Expected '<ID>'");
-
-  std::optional<type::TypePtr> type = std::nullopt;
-  if (check(TokenType::COLON)) {
-    advance();
-    type = parseType();
-  }
-
-  std::optional<ast::ExprPtr> expr = std::nullopt;
-  if (check(TokenType::ASSIGN)) {
-    advance();
-    expr = parseExpr();
-  }
-
-  expect(TokenType::SEMICOLON, "Expected ';'");
-
-  auto vdstmt = std::make_shared<ast::VarDeclStmt>(pos, mut, name, type, expr);
-  schecker.check(*vdstmt);
-  return vdstmt;
+  auto bexpr = std::make_shared<ast::BreakExpr>(value);
+  bexpr->pos = pos;
+  builder.build(*bexpr);
+  return bexpr;
 }
 
-ast::AssignStmtPtr
-Parser::parseAssignStmt(ast::AssignElemPtr &&lvalue)
+ast::ContinueExprPtr
+Parser::parseContinueExpr()
 {
-  util::Position pos = ctoken.pos;
-  expect(TokenType::ASSIGN, "Expected '='");
-  ast::ExprPtr expr = Parser::parseExpr();
+  // ContinueExpr -> continue
+  util::Position pos = cur.pos;
+  consume(TokenType::CONTINUE, "Expect 'continue'");
 
-  expect(TokenType::SEMICOLON, "Expected ';'");
+  auto cexpr = std::make_shared<ast::ContinueExpr>();
+  cexpr->pos = pos;
+  builder.build(*cexpr);
+  return cexpr;
+}
 
-  auto astmt = std::make_shared<ast::AssignStmt>(pos, lvalue, expr);
-  schecker.check(*astmt);
-  return astmt;
+ast::AssignExprPtr
+Parser::parseAssignExpr(ast::AssignElemPtr &&lvalue)
+{
+  // AssignElem = Expr
+  util::Position pos = cur.pos;
+  consume(TokenType::ASSIGN, "Expect '='");
+
+  auto expr = parseExpr();
+
+  auto aexpr = std::make_shared<ast::AssignExpr>(lvalue, expr);
+  aexpr->pos = pos;
+  builder.build(*aexpr);
+  return aexpr;
 }
 
 ast::AssignElemPtr
-Parser::parseAssignElem()
+Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
 {
-  util::Position pos = ctoken.pos;
+  // AssignElem -> Variable
+  //             | ArrayAccess
+  //             | TupleAccess
+  util::Position pos = cur.pos;
 
-  std::string name = ctoken.value;
-  expect(TokenType::ID, "Expected '<ID>'");
-  if (check(TokenType::LBRACK)) {
+  if (check(TokenType::ID) && checkAhead(TokenType::ASSIGN)) {
+    // Variable -> <ID>
+    std::string name = cur.value;
     advance();
-    auto expr = parseExpr();
-    expect(TokenType::RBRACK, "Expected ']'");
-
-    auto aacc = std::make_shared<ast::ArrayAccess>(pos, name, expr);
-    schecker.check(*aacc);
-    return aacc;
+    auto var = std::make_shared<ast::Variable>(name);
+    var->pos = pos;
+    builder.build(*var);
+    auto aelem = std::make_shared<ast::AssignElem>(var);
+    aelem->pos = pos;
+    builder.build(*aelem);
+    return aelem;
   }
 
-  if (check(TokenType::DOT)) {
-    advance();
-    int value = std::stoi(ctoken.value);
-    expect(TokenType::INT, "Expected <NUM> for Tuple");
-
-    auto tacc = std::make_shared<ast::TupleAccess>(pos, name, value);
-    schecker.check(*tacc);
-    return tacc;
+  ast::ExprPtr value;
+  if (val.has_value()) {
+    value = val.value();
+  } else {
+    value = parseValue();
   }
 
-  auto var = std::make_shared<ast::Variable>(pos, name);
-  schecker.check(*var);
-  return var;
+  // ArrayAccess -> Value [ Expr ]
+  //              | ArrayAccess [ Expr ]
+  //              | TupleAccess [ Expr ]
+  //
+  // TupleAccess -> Value . <NUM>
+  //              | TupleAccess . <NUM>
+  //              | ArrayAccess . <NUM>
+  //
+  // 通过检查下一个 token 是 [ 还是 . 调用相应的 parse 函数
+  // 可赋值元素必须要先识别一个 ArrayAccess 或 TupleAccess
+  ast::AssignElemPtr aelem;
+  do {
+    if (check(TokenType::LBRACK)) {
+      aelem = parseArrayAccess(aelem);
+    } else if (check(TokenType::LPAREN)) {
+      aelem = parseTupleAccess(aelem);
+    } else {
+      util::unreachable("Parse::parseAssignElem()");
+    }
+  } while (check(TokenType::LBRACK) || check(TokenType::LPAREN));
+
+  aelem->pos = pos;
+  builder.build(*aelem);
+  return aelem;
 }
 
-/**
- * @brief  解析表达式，用递归下降解析分层处理运算优先级
- * @return ast::ExprPtr - 顶层比较表达式
- */
-ast::ExprPtr
-Parser::parseExpr(std::optional<ast::AssignElemPtr> elem)
+ast::ArrayAccessPtr
+Parser::parseArrayAccess(ast::ExprPtr val)
 {
-  if (check(TokenType::LBRACE)) {
-    return parseFuncExprBlockStmt();
+  util::Position pos = cur.pos;
+  consume(TokenType::LBRACK, "Expect '['");
+  auto idx = parseExpr();
+  consume(TokenType::RBRACK, "Expect ']'");
+
+  auto aacc = std::make_shared<ast::ArrayAccess>(val, idx);
+  aacc->pos = pos;
+  builder.build(*aacc);
+  return aacc;
+}
+
+ast::TupleAccessPtr
+Parser::parseTupleAccess(ast::ExprPtr val)
+{
+  util::Position pos = cur.pos;
+  consume(TokenType::LPAREN, "Expect '('");
+
+  int idx = std::stoi(cur.value);
+  consume(TokenType::INT, "Expect <NUM>");
+
+  consume(TokenType::RPAREN, "Expecr ')'");
+
+  auto tacc = std::make_shared<ast::TupleAccess>(val, idx);
+  tacc->pos = pos;
+  builder.build(*tacc);
+  return tacc;
+}
+
+ast::ExprPtr
+Parser::parseValue()
+{
+  // Value -> BracketExpr
+  //        | CallExpr
+  //        | Variable
+
+  util::Position pos = cur.pos;
+
+  // BracketExpr -> ( Expr )
+  if (check(TokenType::LPAREN)) {
+    advance();
+    auto expr = parseExpr();
+    consume(TokenType::RPAREN, "Expect ')'");
+    auto bexpr = std::make_shared<ast::BracketExpr>(expr);
+    bexpr->pos = pos;
+    builder.build(*bexpr);
+    return bexpr;
   }
-  if (check(TokenType::IF)) {
-    return parseIfExpr();
+
+  // CallExpr -> <ID> ( ...
+  if (check(TokenType::ID) && checkAhead(TokenType::LPAREN)) {
+    return parseCallExpr();
   }
-  if (check(TokenType::LOOP)) {
-    return parseLoopStmt();
-  }
-  return Parser::parseCmpExpr(std::move(elem));
+
+  // Variable -> <ID>
+  std::string name = cur.value;
+  consume(TokenType::ID, "Expect '<ID>");
+  auto var = std::make_shared<ast::Variable>(name);
+  var->pos = pos;
+  builder.build(*var);
+  return var;
 }
 
 static ast::CmpOper
@@ -443,8 +588,9 @@ tokenType2CmpOper(TokenType type)
     case TokenType::GT:  return ast::CmpOper::GT;
     case TokenType::LT:  return ast::CmpOper::LT;
     default:
-      util::unreachable("par::tokenType2CmpOper()");
   }
+
+  util::unreachable("par::tokenType2CmpOper()");
 }
 
 static ast::AriOper
@@ -456,31 +602,35 @@ tokenType2AriOper(TokenType type)
     case TokenType::MUL:   return ast::AriOper::MUL;
     case TokenType::DIV:   return ast::AriOper::DIV;
     default:
-      util::unreachable("par::tokenType2AriOper");
   }
+
+  util::unreachable("par::tokenType2AriOper");
 }
 
 ast::ExprPtr
 Parser::parseCmpExpr(std::optional<ast::AssignElemPtr> elem)
 {
+  // CmpExpr -> (CmpExpr CmpOper)* AddExpr
   ast::ExprPtr lhs = parseAddExpr(std::move(elem));
   while (
-    check(TokenType::LT) || check(TokenType::LEQ) || check(TokenType::GT) ||
-    check(TokenType::GEQ) || check(TokenType::EQ) || check(TokenType::NEQ)
+    check(TokenType::LT) || check(TokenType::LEQ) ||
+    check(TokenType::GT) || check(TokenType::GEQ) ||
+    check(TokenType::EQ) || check(TokenType::NEQ)
   ) {
-    util::Position pos = ctoken.pos;
+    util::Position pos = cur.pos;
 
-    TokenType op = ctoken.type;
+    TokenType op = cur.type;
     advance();
 
     ast::ExprPtr rhs = parseAddExpr();
 
     auto cexpr = std::make_shared<ast::CmpExpr>(
-      pos, lhs, tokenType2CmpOper(op), rhs
+      lhs, tokenType2CmpOper(op), rhs
     );
-    schecker.check(*cexpr);
+    cexpr->pos = pos;
+    builder.build(*cexpr);
     lhs = cexpr;
-  } // end while
+  }
 
   return lhs;
 }
@@ -488,21 +638,23 @@ Parser::parseCmpExpr(std::optional<ast::AssignElemPtr> elem)
 ast::ExprPtr
 Parser::parseAddExpr(std::optional<ast::AssignElemPtr> elem)
 {
+  // AddExpr -> (AddExpr [+ | -])* MulExpr
   ast::ExprPtr lhs = Parser::parseMulExpr(std::move(elem));
   while (check(TokenType::PLUS) || check(TokenType::MINUS)) {
-    util::Position pos = ctoken.pos;
+    util::Position pos = cur.pos;
 
-    TokenType op = ctoken.type;
+    TokenType op = cur.type;
     advance();
 
-    ast::ExprPtr right = parseMulExpr();
+    ast::ExprPtr rhs = parseMulExpr();
 
     auto aexpr = std::make_shared<ast::AriExpr>(
-      pos, lhs, tokenType2AriOper(op), right
+      lhs, tokenType2AriOper(op), rhs
     );
-    schecker.check(*aexpr);
+    aexpr->pos = pos;
+    builder.build(*aexpr);
     lhs = aexpr;
-  } // end while
+  }
 
   return lhs;
 }
@@ -510,19 +662,21 @@ Parser::parseAddExpr(std::optional<ast::AssignElemPtr> elem)
 ast::ExprPtr
 Parser::parseMulExpr(std::optional<ast::AssignElemPtr> elem)
 {
+  // MulExpr -> (MulExpr [* | /])* Factor
   ast::ExprPtr lhs = parseFactor(std::move(elem));
   while (check(TokenType::MUL) || check(TokenType::DIV)) {
-    util::Position pos = ctoken.pos;
+    util::Position pos = cur.pos;
 
-    TokenType op = ctoken.type;
+    TokenType op = cur.type;
     advance();
 
     ast::ExprPtr rhs = parseFactor();
 
     auto aexpr = std::make_shared<ast::AriExpr>(
-      pos, lhs, tokenType2AriOper(op), rhs
+      lhs, tokenType2AriOper(op), rhs
     );
-    schecker.check(*aexpr);
+    aexpr->pos = pos;
+    builder.build(*aexpr);
     lhs = aexpr;
   } // end while
 
@@ -532,8 +686,13 @@ Parser::parseMulExpr(std::optional<ast::AssignElemPtr> elem)
 ast::ExprPtr
 Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
 {
-  util::Position pos = ctoken.pos;
-  // ArrayElements
+  // Factor -> ArrayElems
+  //         | TupleElems
+  //         | Elements
+
+  util::Position pos = cur.pos;
+
+  // ArrayElems -> [ (Expr)? (, Expr)* ]
   if (check(TokenType::LBRACK)) {
     advance();
     std::vector<ast::ExprPtr> elems{};
@@ -546,127 +705,133 @@ Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
     }
     advance();
 
-    auto aelems = std::make_shared<ast::ArrayElems>(pos, elems);
-    schecker.check(*aelems);
+    auto aelems = std::make_shared<ast::ArrayElems>(elems);
+    aelems->pos = pos;
+    builder.build(*aelems);
     return aelems;
   }
 
-  // TupleElements
+  // TupleElems -> ( (Expr , TupleElem)? )
+  // TupleElem -> epsilon | Expr (, Expr)*
   if (check(TokenType::LPAREN)) {
     advance();
-    std::vector<ast::ExprPtr> elems{};
 
+    bool is_tuple_elem = false;
+    std::vector<ast::ExprPtr> elems{};
     while (!check(TokenType::RPAREN)) {
       elems.push_back(parseExpr());
       if (!check(TokenType::COMMA)) {
         break;
       }
+      is_tuple_elem = true;
       advance();
     }
 
-    expect(TokenType::RPAREN, "Expected ')'");
+    consume(TokenType::RPAREN, "Expect ')'");
     auto cnt = elems.size();
 
     if (0 == cnt) {
-      throw std::runtime_error{"Unsupport the unit type."};
+      auto bexpr = std::make_shared<ast::BracketExpr>(std::nullopt);
+      bexpr->pos = pos;
+      builder.build(*bexpr);
+      return bexpr;
     }
-    if (1 == cnt) {
+    if (!is_tuple_elem) {
       // 单个表达式没有逗号不是元组，而是普通括号表达式
-      auto bexpr = std::make_shared<ast::BracketExpr>(pos, elems[0]);
-      schecker.check(*bexpr);
+      auto bexpr = std::make_shared<ast::BracketExpr>(elems[0]);
+      bexpr->pos = pos;
+      builder.build(*bexpr);
       return bexpr;
     }
 
-    auto telems = std::make_shared<ast::TupleElems>(pos, elems);
-    schecker.check(*telems);
+    auto telems = std::make_shared<ast::TupleElems>(elems);
+    telems->pos = pos;
+    builder.build(*telems);
     return telems;
   }
 
-  auto element = parseElement(std::move(elem));
-
-  auto factor = std::make_shared<ast::Factor>(pos, element);
-  schecker.check(*factor);
-  return factor;
+  return parseElement(std::move(elem));
 }
 
 ast::ExprPtr
 Parser::parseElement(std::optional<ast::AssignElemPtr> elem)
 {
+  // Element -> Number
+  //          | Value
+  //          | AssignElem
+
   if (elem.has_value()) {
     return elem.value();
   }
 
-  util::Position pos = ctoken.pos;
-  if (check(TokenType::LPAREN)) {
-    advance();
-    ast::ExprPtr expr = Parser::parseCmpExpr();
-    expect(TokenType::RPAREN, "Expected ')'");
-    auto bexpr = std::make_shared<ast::BracketExpr>(pos, expr);
-    schecker.check(*bexpr);
-    return bexpr;
-  }
-
+  // Number -> <NUM>
+  util::Position pos = cur.pos;
+  std::string value = cur.value;
   if (check(TokenType::INT)) {
-    int value = std::stoi(ctoken.value);
     advance();
-    auto num = std::make_shared<ast::Number>(pos, value);
-    schecker.check(*num);
+    auto num = std::make_shared<ast::Number>(std::stoi(value));
+    num->pos = pos;
+    builder.build(*num);
     return num;
   }
 
-  if (check(TokenType::ID)) {
-    if (checkAhead(TokenType::LBRACK) || checkAhead(TokenType::DOT)) {
-      return parseAssignElem();
-    }
-    if (checkAhead(TokenType::LPAREN)) {
-      return parseCallExpr();
-    }
-    std::string name = ctoken.value;
-    advance();
-    auto var = std::make_shared<ast::Variable>(pos, name);
-    schecker.check(*var);
-    return var;
+  // Value -> BracketExpr | CallExpr | Variable
+  // AssignElem -> Variable | ArrayAccess | TupleAccess
+  //   ArrayAccess -> Value [ Expr ]
+  //   TupleAccess -> Value . <NUM>
+  auto val = parseValue();
+  if (check(TokenType::LPAREN) || check(TokenType::LBRACK)) {
+    return parseAssignElem(val);
   }
 
-  util::unreachable("par::base::Parser::parseElement()");
+  return val;
 }
 
 ast::CallExprPtr
 Parser::parseCallExpr()
 {
-  util::Position pos  = ctoken.pos;
-  std::string    name = ctoken.value; // function name
-  expect(TokenType::ID, "Expected function name");
+  // CallExpr -> <ID> ( ArgList )
 
-  expect(TokenType::LPAREN, "Expected '('");
+  util::Position pos  = cur.pos;
+  std::string    name = cur.value; // function name
+  consume(TokenType::ID, "Expect function name");
 
+  consume(TokenType::LPAREN, "Expect '('");
+
+  // ArgList -> Expr (, Expr)* | epsilon
   std::vector<ast::ExprPtr> argv{};
   while (!check(TokenType::RPAREN)) {
-    argv.push_back(parseCmpExpr());
+    argv.push_back(parseExpr());
     if (!check(TokenType::COMMA)) {
       break;
     }
     advance();
   }
+  consume(TokenType::RPAREN, "Expect ')'");
 
-  expect(TokenType::RPAREN, "Expected ')'");
-  auto cexpr = std::make_shared<ast::CallExpr>(pos, name, argv);
-  schecker.check(*cexpr);
+  auto cexpr = std::make_shared<ast::CallExpr>(name, argv);
+  cexpr->pos = pos;
+  builder.build(*cexpr);
   return cexpr;
 }
 
-ast::IfStmtPtr
-Parser::parseIfStmt()
+ast::IfExprPtr
+Parser::parseIfExpr()
 {
-  util::Position pos = ctoken.pos;
-  expect(TokenType::IF, "Expected 'if'");
-  auto cond = parseCmpExpr();
+  // IfExpr -> if Expr StmtBlockExpr ElseClause
 
-  //DEBUG 作用域
-  stable.enterScope("if");
+  util::Position pos = cur.pos;
+  consume(TokenType::IF, "Expect 'if'");
 
-  auto body = parseBlockStmt();
+  auto cond = parseExpr();
 
+  builder.ctx->enterIf();
+  auto body = parseStmtBlockExpr();
+  builder.ctx->exitScope();
+
+  // ElseClause -> else if Expr StmtBlockExpr ElseClause
+  //             | else StmtBlockExpr
+  //             | epsilon
   std::vector<ast::ElseClausePtr> elses{};
   while (check(TokenType::ELSE)) {
     bool end = !check(TokenType::IF);
@@ -676,137 +841,128 @@ Parser::parseIfStmt()
     }
   }
 
-  stable.exitScope();
-
-  auto istmt = std::make_shared<ast::IfStmt>(pos, cond, body, elses);
-  schecker.check(*istmt);
-  return istmt;
+  auto iexpr = std::make_shared<ast::IfExpr>(cond, body, elses);
+  iexpr->pos = pos;
+  builder.build(*iexpr);
+  return iexpr;
 }
 
 ast::ElseClausePtr
 Parser::parseElseClause()
 {
-  util::Position pos = ctoken.pos;
-  expect(TokenType::ELSE, "Expected 'else'");
+  // ElseClause -> else (if Expr)? StmtBlockExpr
 
+  util::Position pos = cur.pos;
+  consume(TokenType::ELSE, "Expect 'else'");
+
+  // (if Expr)?
   std::optional<ast::ExprPtr> cond = std::nullopt;
-  ast::BlockStmtPtr body;
   if (check(TokenType::IF)) {
     advance();
-    cond = parseCmpExpr();
+    cond = parseExpr();
   }
-  body = parseBlockStmt();
 
-  auto eclause = std::make_shared<ast::ElseClause>(pos, cond, body);
-  schecker.check(*eclause);
+  // StmtBlockExpr
+  builder.ctx->enterIf();
+  auto body = parseStmtBlockExpr();
+  builder.ctx->exitScope();
+
+  auto eclause = std::make_shared<ast::ElseClause>(cond, body);
+  eclause->pos = pos;
+  builder.build(*eclause);
   return eclause;
 }
 
-ast::WhileStmtPtr
-Parser::parseWhileStmt()
+ast::WhileLoopExprPtr
+Parser::parseWhileLoopExpr()
 {
-  util::Position pos = ctoken.pos;
-  expect(TokenType::WHILE, "Expected 'while'");
-  auto expr = parseCmpExpr();
+  // WhileLoopExpr -> while Expr StmtBlockExpr
 
-  //DEBUG
-  stable.enterScope("while");
+  util::Position pos = cur.pos;
+  consume(TokenType::WHILE, "Expect 'while'");
 
-  auto block = parseBlockStmt();
+  auto expr = parseExpr();
 
-  stable.exitScope();
+  builder.ctx->enterWhile();
+  auto block = parseStmtBlockExpr();
+  builder.ctx->exitScope();
 
-  auto wstmt = std::make_shared<ast::WhileStmt>(pos, expr, block);
-  schecker.check(*wstmt);
-  return wstmt;
+  auto wlexpr = std::make_shared<ast::WhileLoopExpr>(expr, block);
+  wlexpr->pos = pos;
+  builder.build(*wlexpr);
+  return wlexpr;
 }
 
-/**
- * @brief  解析 for 语句
- * @return ast::ForStmtPtr - AST For Statement 结点指针
- */
-ast::ForStmtPtr
-Parser::parseForStmt()
+ast::ForLoopExprPtr
+Parser::parseForLoopExpr()
 {
-  util::Position pos = ctoken.pos;
-  expect(TokenType::FOR, "Expected 'for'");
+  // ForLoopExpr -> for (mut)? <ID> in Iterable StmtBlockExpr
 
-  std::string name = ctoken.value;
-  expect(TokenType::ID, "Expected '<ID>'");
-  expect(TokenType::IN, "Expected 'in'");
+  util::Position pos = cur.pos;
+  consume(TokenType::FOR, "Expect 'for'");
 
-  auto expr1 = parseCmpExpr();
-  expect(TokenType::DOTS, "Expected '..'");
+  bool mut = false;
+  if (check(TokenType::MUT)) {
+    advance();
+    mut = true;
+  }
+  std::string name = cur.value;
+  consume(TokenType::ID, "Expect '<ID>'");
 
-  auto expr2 = parseCmpExpr();
-  auto block = parseBlockStmt();
+  consume(TokenType::IN, "Expect 'in'");
 
-  auto fstmt = std::make_shared<ast::ForStmt>(
-      pos, name, expr1, expr2, block
-  );
-  schecker.check(*fstmt);
-  return fstmt;
+  auto iter = parseIterable();
+
+  auto block = parseStmtBlockExpr();
+
+  auto flexpr = std::make_shared<ast::ForLoopExpr>(mut, name, iter, block);
+  flexpr->pos = pos;
+  builder.build(*flexpr);
+  return flexpr;
 }
 
-ast::LoopStmtPtr
-Parser::parseLoopStmt()
+ast::ExprPtr
+Parser::parseIterable()
 {
-  util::Position pos = ctoken.pos;
-  expect(TokenType::LOOP, "Expected 'loop'");
+  // Iterable -> Interval
+  //           | IterableVal
 
-  auto block = parseBlockStmt();
+  util::Position pos = cur.pos;
 
-  auto lstmt = std::make_shared<ast::LoopStmt>(pos, block);
-  schecker.check(*lstmt);
-  return lstmt;
-}
-
-ast::BreakStmtPtr
-Parser::parseBreakStmt()
-{
-  util::Position pos = ctoken.pos;
-  expect(TokenType::BREAK, "Expected 'break'");
-
-  std::optional<ast::ExprPtr> value = std::nullopt;
-  if (!check(TokenType::SEMICOLON)) {
-    value = parseExpr();
+  // Interval -> Expr .. Expr
+  // IterableVal -> Expr
+  auto expr1 = parseExpr();
+  if (check(TokenType::DOTS)) {
+    advance();
+    auto expr2 = parseExpr();
+    auto interval = std::make_shared<ast::Interval>(expr1, expr2);
+    interval->pos = pos;
+    builder.build(*interval);
+    return interval;
   }
 
-  auto bstmt = std::make_shared<ast::BreakStmt>(pos, value);
-  schecker.check(*bstmt);
-  return bstmt;
+  auto iter = std::make_shared<ast::IterableVal>(expr1);
+  iter->pos = pos;
+  builder.build(*iter);
+  return iter;
 }
 
-ast::FuncExprBlockStmtPtr
-Parser::parseFuncExprBlockStmt()
+ast::LoopExprPtr
+Parser::parseLoopExpr()
 {
-  auto bstmt = parseBlockStmt();
-  auto febstmt = std::static_pointer_cast<ast::FuncExprBlockStmt>(bstmt);
-  assert(febstmt);
-  return febstmt;
+  // LoopExpr -> loop StmtBlockExpr
+
+  util::Position pos = cur.pos;
+  consume(TokenType::LOOP, "Expect 'loop'");
+
+  builder.ctx->enterLoop();
+  auto block = parseStmtBlockExpr();
+  builder.ctx->exitScope();
+
+  auto lexpr = std::make_shared<ast::LoopExpr>(block);
+  lexpr->pos = pos;
+  builder.build(*lexpr);
+  return lexpr;
 }
 
-/**
- * @brief  解析 if 表达式
- * @return ast::IfExprPtr - AST If Expression 结点指针
- */
-ast::IfExprPtr
-Parser::parseIfExpr()
-{
-  util::Position pos = ctoken.pos;
-  expect(TokenType::IF, "Expected 'if' for If Expression");
-
-  auto condition = parseExpr();
-  auto if_branch = parseFuncExprBlockStmt();
-
-  expect(TokenType::ELSE, "Expected 'else' for If expression");
-  auto else_branch = parseFuncExprBlockStmt();
-
-  auto iexpr = std::make_shared<ast::IfExpr>(
-    pos, condition, if_branch, else_branch
-  );
-  schecker.check(*iexpr);
-  return iexpr;
-}
-
-} // namespace parser::base
+} // namespace par

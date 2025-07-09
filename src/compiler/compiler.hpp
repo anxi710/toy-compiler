@@ -4,7 +4,7 @@
 #include "parser.hpp"
 #include "err_report.hpp"
 #include "symbol_table.hpp"
-#include "semantic_checker.hpp"
+#include "semantic_ir_builder.hpp"
 
 namespace cpr {
 
@@ -27,13 +27,13 @@ public:
 
 private:
   ast::ProgPtr ast_root;
-  std::vector<lex::token::Token> tokens;
+  std::vector<lex::Token> tokens;
 
-  std::unique_ptr<lex::base::Lexer>     lexer;
-  std::unique_ptr<par::base::Parser>    parser;
-  std::unique_ptr<sym::SymbolTable>     stable;
-  std::unique_ptr<sem::SemanticChecker> schecker;
-  std::unique_ptr<err::ErrReporter>     ereporter;
+  std::unique_ptr<lex::Lexer>             lexer;
+  std::unique_ptr<par::Parser>            parser;
+  std::unique_ptr<sym::SymbolTable>       symtab;
+  std::unique_ptr<par::SemanticIRBuilder> builder;
+  std::unique_ptr<err::ErrReporter>       reporter;
 };
 
 } // namespace cpr

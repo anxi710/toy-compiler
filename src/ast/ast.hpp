@@ -1,38 +1,24 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <vector>
-#include <optional>
-
-#include "type.hpp"
-#include "position.hpp"
-
-namespace visit {
-
-class NodeVisitor;
-
-} // namespace visit
+#include "type_factory.hpp"
 
 namespace ast {
 
+class NodeVisitor;
+
 // 所有 AST 结点的基类
 struct Node {
-  util::Position pos{0, 0};
+  util::Position pos;
 
-  Node() = default;
-  Node(util::Position pos) : pos(pos) {}
   virtual ~Node() = default;
-  virtual void accept(visit::NodeVisitor &visitor) = 0;
+  virtual void accept(NodeVisitor &visitor) = 0;
 };
 using NodePtr = std::shared_ptr<Node>;
 
 // Declaration
 struct Decl : virtual Node {
-  Decl() = default;
-  Decl(util::Position pos) : Node(pos) {}
   ~Decl() override = default;
-  void accept(visit::NodeVisitor &visitor) override = 0;
+  void accept(NodeVisitor &visitor) override = 0;
 };
 using DeclPtr = std::shared_ptr<Decl>;
 
@@ -42,245 +28,144 @@ struct Prog : virtual Node {
 
   Prog(std::vector<DeclPtr> decls) : decls(std::move(decls)) {}
   ~Prog() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using ProgPtr = std::shared_ptr<Prog>;
 
-// Argument
-struct Arg : virtual Node {
-  bool          mut;
-  std::string   name;
+struct Type : Node {
   type::TypePtr type;
 
-  Arg(util::Position pos, bool mut,
-    std::string name, type::TypePtr type
-  ) : Node(pos), mut(mut), name(std::move(name)),
-      type(std::move(type)) {}
+  Type() : type(type::TypeFactory::UNKNOWN_TYPE) {}
+  explicit Type(type::TypePtr t) : type(std::move(t)) {}
+  ~Type() override = default;
+  void accept(NodeVisitor &visitor) override;
+
+  Type& operator=(const Type& other) {
+    if (this == &other) {
+      return *this;
+    }
+    this->type = other.type;
+    return *this;
+  }
+  bool operator==(const Type& other) const {
+    return this->type == other.type;
+  }
+};
+
+// Argument
+struct Arg : virtual Node {
+  std::string   name;
+  bool          mut;
+  Type          type;
+
+  Arg(std::string name, bool mut, const Type &type
+  ) : name(std::move(name)), mut(mut),
+      type(type) {}
   ~Arg() override = default;
 
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using ArgPtr = std::shared_ptr<Arg>;
 
 // Function header declaration
 struct FuncHeaderDecl : Decl {
-  std::string name; // function name
+  std::string         name; // function name
   std::vector<ArgPtr> argv; // argument vector
-  std::optional<type::TypePtr> retval_type; // return value type
+  Type                type; // return value type
 
-  FuncHeaderDecl(util::Position pos, std::string name,
-    std::vector<ArgPtr> argv, std::optional<type::TypePtr> retval_type
-  ) : Decl(pos), name(std::move(name)), argv(std::move(argv)),
-      retval_type(std::move(retval_type)) {};
+  FuncHeaderDecl(std::string name,
+    std::vector<ArgPtr> argv, const Type &type
+  ) : name(std::move(name)), argv(std::move(argv)),
+      type(type) {};
   ~FuncHeaderDecl() override = default;
 
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using FuncHeaderDeclPtr = std::shared_ptr<FuncHeaderDecl>;
 
 // Statement
 struct Stmt : virtual Node {
-  Stmt() = default;
-  Stmt(util::Position pos) : Node(pos) {}
+  enum class Kind : std::uint8_t {
+    EMPTY,
+    DECL,
+    EXPR,
+  } kind;
+  Type type;
+  bool unreachable = false;
+
+  Stmt(Kind kind) : kind(kind) {}
   ~Stmt() override = default;
-  void accept(visit::NodeVisitor &visitor) override = 0;
+  void accept(NodeVisitor &visitor) override = 0;
 };
 using StmtPtr = std::shared_ptr<Stmt>;
 
-// Block statement
-struct BlockStmt : Stmt {
-  std::vector<StmtPtr> stmts; // statements
-
-  BlockStmt(std::vector<StmtPtr> stmts)
-    : stmts(std::move(stmts)) {}
-  ~BlockStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
+// Empty Statement
+struct EmptyStmt : Stmt {
+  EmptyStmt() : Stmt(Kind::EMPTY) {}
+  ~EmptyStmt() override = default;
+  void accept(NodeVisitor& visitor) override;
 };
-using BlockStmtPtr = std::shared_ptr<BlockStmt>;
+using EmptyStmtPtr = std::shared_ptr<EmptyStmt>;
 
-// Function Declaration
-struct FuncDecl : Decl {
-  FuncHeaderDeclPtr header; // function header
-  BlockStmtPtr      body;   // function body
-
-  FuncDecl(FuncHeaderDeclPtr fhdecl, BlockStmtPtr bstmt)
-    : header(std::move(fhdecl)), body(std::move(bstmt)) {}
-  ~FuncDecl() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using FuncDeclPtr = std::shared_ptr<FuncDecl>;
-
-// Expression
-struct Expr : virtual Node {
-  type::TypePtr type; // value type
-
-  Expr() = default;
-  Expr(util::Position pos) : Node(pos) {}
-  ~Expr() override = default;
-  void accept(visit::NodeVisitor& visitor) override = 0;
-};
-using ExprPtr = std::shared_ptr<Expr>;
-
-struct StmtOrExpr {
-  std::optional<StmtPtr> stmt = std::nullopt;
-  std::optional<ExprPtr> expr = std::nullopt;
-};
-using StmtOrExprPtr = std::shared_ptr<StmtOrExpr>;
-
-// Expression Statement
-struct ExprStmt : Stmt {
-  ExprPtr expr;
-
-  ExprStmt(ExprPtr expr) : expr(std::move(expr)) {}
-  ~ExprStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using ExprStmtPtr = std::shared_ptr<ExprStmt>;
-
-// 括号表达式
-struct BracketExpr : Expr {
-  ExprPtr expr; // ( expr ) - 括号中的表达式
-
-  BracketExpr(util::Position pos, ExprPtr expr)
-    : Expr(pos), expr(std::move(expr)) {}
-  ~BracketExpr() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using BracketExprPtr = std::shared_ptr<BracketExpr>;
-
-// Assign Element
-struct AssignElem : Expr {
-  AssignElem(util::Position pos) : Expr(pos) {}
-  ~AssignElem() override = default;
-  void accept(visit::NodeVisitor& visitor) override = 0;
-};
-using AssignElemPtr = std::shared_ptr<AssignElem>;
-
-struct Variable : AssignElem {
-  std::string name; // 变量名
-
-  Variable(util::Position pos, std::string name)
-    : AssignElem(pos), name(std::move(name)) {}
-  ~Variable() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using VariablePtr = std::shared_ptr<Variable>;
-
-struct ArrayAccess : AssignElem {
-  std::string name; // 数组名
-  ExprPtr     idx; // 索引值
-
-  ArrayAccess(util::Position pos, std::string name, ExprPtr idx)
-    : AssignElem(pos), name(std::move(name)), idx(std::move(idx)) {}
-  ~ArrayAccess() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using ArrayAccessPtr = std::shared_ptr<ArrayAccess>;
-
-struct TupleAccess : AssignElem {
-  std::string name; // 元组名
-  int         idx;  // 索引值
-
-  TupleAccess(util::Position pos, std::string name, int idx)
-    : AssignElem(pos), name(std::move(name)), idx(idx) {}
-  ~TupleAccess() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using TupleAccessPtr = std::shared_ptr<TupleAccess>;
-
-struct Number : Expr {
-  int value; // 值
-
-  Number(util::Position pos, int value)
-    : Expr(pos), value(value) {}
-  ~Number() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using NumberPtr = std::shared_ptr<Number>;
-
-struct Factor : Expr {
-  ExprPtr elem;
-
-  Factor(util::Position pos, ExprPtr expr)
-    : Expr(pos), elem(std::move(expr)) {}
-  ~Factor() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using FactorPtr = std::shared_ptr<Factor>;
-
-struct ArrayElems : Expr {
-  std::vector<ExprPtr> elems;
-
-  ArrayElems(util::Position pos, std::vector<ExprPtr> elems)
-    : Expr(pos), elems(std::move(elems)) {}
-  ~ArrayElems() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using ArrayElemsPtr = std::shared_ptr<ArrayElems>;
-
-struct TupleElems : Expr {
-  std::vector<ExprPtr> elems;
-
-  TupleElems(util::Position pos, std::vector<ExprPtr> elems)
-    : Expr(pos), elems(std::move(elems)) {}
-  ~TupleElems() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using TupleElemsPtr = std::shared_ptr<TupleElems>;
-
-// Return Statement
-struct RetStmt : Stmt {
-  std::optional<ExprPtr> retval; // return value (an expression)
-
-  RetStmt(util::Position pos, std::optional<ExprPtr> retval)
-    : Node(pos), retval(std::move(retval)) {}
-  ~RetStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using RetStmtPtr = std::shared_ptr<RetStmt>;
+struct Expr;
+using  ExprPtr = std::shared_ptr<Expr>;
 
 // Variable Declaration Statement
-struct VarDeclStmt : Stmt, Decl {
+struct VarDeclStmt : Stmt {
   bool mut;
   std::string name;
-  std::optional<type::TypePtr> type; // variable type
+  Type type; // variable type
   std::optional<ExprPtr> value;
 
-  VarDeclStmt(util::Position pos, bool mut, std::string name,
-    std::optional<type::TypePtr> type, std::optional<ExprPtr> expr
-  ) : Node(pos), mut(mut), name(std::move(name)),
-      type(std::move(type)), value(std::move(expr)) {}
+  VarDeclStmt(bool mut, std::string name,
+    const Type &type, std::optional<ExprPtr> expr
+  ) : Stmt(Kind::DECL), mut(mut), name(std::move(name)),
+      type(type), value(std::move(expr)) {}
   ~VarDeclStmt() override = default;
 
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using VarDeclStmtPtr = std::shared_ptr<VarDeclStmt>;
 
-// Assign Statement
-struct AssignStmt : Stmt {
-  AssignElemPtr lvalue;
-  ExprPtr       expr; // expression
+// Expression
+struct Expr : virtual Node {
+  bool use_side_effect;
+  bool is_ctlflow;
+  Type type; // value type
 
-  AssignStmt(util::Position pos, AssignElemPtr lvalue, ExprPtr expr)
-    : Stmt(pos), lvalue(std::move(lvalue)), expr(std::move(expr)) {}
-  ~AssignStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
+  ~Expr() override = default;
+  void accept(NodeVisitor& visitor) override = 0;
 };
-using AssignStmtPtr = std::shared_ptr<AssignStmt>;
+
+// Return Expression
+struct RetExpr : Expr {
+  std::optional<ExprPtr> retval; // return value (an expression)
+
+  RetExpr(std::optional<ExprPtr> retval)
+    : retval(std::move(retval)) {}
+  ~RetExpr() override = default;
+
+  void accept(NodeVisitor& visitor) override;
+};
+using RetExprPtr = std::shared_ptr<RetExpr>;
+
+// break expression
+struct BreakExpr : Expr {
+  std::optional<ExprPtr> value;
+
+  BreakExpr(std::optional<ExprPtr> expr)
+    : value(std::move(expr)) {}
+  ~BreakExpr() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using BreakExprPtr = std::shared_ptr<BreakExpr>;
+
+// continue expression
+struct ContinueExpr : Expr {
+  ~ContinueExpr() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using ContinueExprPtr = std::shared_ptr<ContinueExpr>;
 
 // Comparison Operator
 enum class CmpOper : std::uint8_t {
@@ -306,11 +191,10 @@ struct CmpExpr : Expr {
   CmpOper op;  // operator
   ExprPtr rhs; // 右部
 
-  CmpExpr(util::Position pos, ExprPtr lhs, CmpOper op, ExprPtr rhs)
-    : Expr(pos), lhs(std::move(lhs)), op(op), rhs(std::move(rhs)) {}
+  CmpExpr(ExprPtr lhs, CmpOper op, ExprPtr rhs)
+    : lhs(std::move(lhs)), op(op), rhs(std::move(rhs)) {}
   ~CmpExpr() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using CmpExprPtr = std::shared_ptr<CmpExpr>;
 
@@ -320,152 +204,237 @@ struct AriExpr : Expr {
   AriOper op;  // operator
   ExprPtr rhs; // 右操作数
 
-  AriExpr(util::Position pos, ExprPtr lhs, AriOper op, ExprPtr rhs)
-    : Expr(pos), lhs(std::move(lhs)), op(op), rhs(std::move(rhs)) {}
+  AriExpr(ExprPtr lhs, AriOper op, ExprPtr rhs)
+    : lhs(std::move(lhs)), op(op), rhs(std::move(rhs)) {}
   ~AriExpr() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using AriExprPtr = std::shared_ptr<AriExpr>;
+
+struct Number : Expr {
+  int value; // 值
+
+  Number(int value) : value(value) {}
+  ~Number() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using NumberPtr = std::shared_ptr<Number>;
+
+struct Variable : Expr {
+  std::string name;
+
+  Variable(std::string name) : name(std::move(name)) {}
+  ~Variable() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using VariablePtr = std::shared_ptr<Variable>;
+
+// Assign Element
+struct AssignElem : Expr {
+  ExprPtr value;
+
+  AssignElem(ExprPtr value) : value(std::move(value)) {}
+  ~AssignElem() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using AssignElemPtr = std::shared_ptr<AssignElem>;
+
+struct ArrayAccess : AssignElem {
+  ExprPtr idx; // 索引值
+
+  ArrayAccess(ExprPtr value, ExprPtr idx)
+    : AssignElem(std::move(value)), idx(std::move(idx)) {}
+  ~ArrayAccess() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using ArrayAccessPtr = std::shared_ptr<ArrayAccess>;
+
+struct TupleAccess : AssignElem {
+  int idx; // 索引值
+
+  TupleAccess(ExprPtr value, int idx)
+    : AssignElem(std::move(value)), idx(idx) {}
+  ~TupleAccess() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using TupleAccessPtr = std::shared_ptr<TupleAccess>;
+
+// Expression Statement
+struct ExprStmt : Stmt {
+  bool used_as_stmt;
+  ExprPtr expr;
+
+  ExprStmt(ExprPtr expr) : Stmt(Kind::EXPR), expr(std::move(expr)) {}
+  ~ExprStmt() override = default;
+
+  void accept(NodeVisitor& visitor) override;
+};
+using ExprStmtPtr = std::shared_ptr<ExprStmt>;
+
+// Statement Block Expression
+struct StmtBlockExpr : Expr {
+  std::vector<StmtPtr> stmts; // statements
+
+  StmtBlockExpr(std::vector<StmtPtr> stmts)
+    : stmts(std::move(stmts)) {}
+  ~StmtBlockExpr() override = default;
+
+  void accept(NodeVisitor& visitor) override;
+};
+using StmtBlockExprPtr = std::shared_ptr<StmtBlockExpr>;
+
+// Function Declaration
+struct FuncDecl : Decl {
+  FuncHeaderDeclPtr header; // function header
+  StmtBlockExprPtr  body;   // function body
+
+  FuncDecl(FuncHeaderDeclPtr header, StmtBlockExprPtr body)
+    : header(std::move(header)), body(std::move(body)) {}
+  ~FuncDecl() override = default;
+
+  void accept(NodeVisitor& visitor) override;
+};
+using FuncDeclPtr = std::shared_ptr<FuncDecl>;
+
+// 括号表达式
+struct BracketExpr : Expr {
+  std::optional<ExprPtr> expr; // ( expr )，允许空括号
+
+  BracketExpr(std::optional<ExprPtr> expr)
+    : expr(std::move(expr)) {}
+  ~BracketExpr() override = default;
+
+  void accept(NodeVisitor& visitor) override;
+};
+using BracketExprPtr = std::shared_ptr<BracketExpr>;
+
+struct ArrayElems : Expr {
+  std::vector<ExprPtr> elems;
+
+  ArrayElems(std::vector<ExprPtr> elems)
+    : elems(std::move(elems)) {}
+  ~ArrayElems() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using ArrayElemsPtr = std::shared_ptr<ArrayElems>;
+
+struct TupleElems : Expr {
+  std::vector<ExprPtr> elems;
+
+  TupleElems(std::vector<ExprPtr> elems)
+    : elems(std::move(elems)) {}
+  ~TupleElems() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using TupleElemsPtr = std::shared_ptr<TupleElems>;
+
+// Assign Expression
+struct AssignExpr : Expr {
+  AssignElemPtr lval;
+  ExprPtr       rval; // expression
+
+  AssignExpr(AssignElemPtr lval, ExprPtr rval)
+    : lval(std::move(lval)), rval(std::move(rval)) {}
+  ~AssignExpr() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using AssignExprPtr = std::shared_ptr<AssignExpr>;
 
 // Call Expression
 struct CallExpr : Expr {
   std::string          callee; // 被调用函数名
   std::vector<ExprPtr> argv;   // argument vector
 
-  CallExpr(util::Position pos, std::string callee,
-    std::vector<ExprPtr> argv
-  ) : Expr(pos), callee(std::move(callee)), argv(std::move(argv)) {}
+  CallExpr(std::string callee, std::vector<ExprPtr> argv
+  ) : callee(std::move(callee)), argv(std::move(argv)) {}
   ~CallExpr() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using CallExprPtr = std::shared_ptr<CallExpr>;
 
 // else 子句
-struct ElseClause : Stmt {
+struct ElseClause : Node {
   std::optional<ExprPtr> cond; // else (if expr)?
-  BlockStmtPtr           body;
+  StmtBlockExprPtr       body;
 
-  ElseClause(util::Position pos, std::optional<ExprPtr> expr,
-    BlockStmtPtr bstmt
-  ) : Stmt(pos), cond(std::move(expr)), body(std::move(bstmt)) {}
+  ElseClause(std::optional<ExprPtr> cond, StmtBlockExprPtr body
+  ) : cond(std::move(cond)), body(std::move(body)) {}
   ~ElseClause() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using ElseClausePtr = std::shared_ptr<ElseClause>;
 
-// if statement
-struct IfStmt : Stmt {
+// If Expression
+struct IfExpr : Expr {
   ExprPtr                    cond;
-  BlockStmtPtr               body;
+  StmtBlockExprPtr           body;
   std::vector<ElseClausePtr> elses; // else clauses
 
-  IfStmt(util::Position pos, ExprPtr expr, BlockStmtPtr bstmt,
+  IfExpr(ExprPtr cond, StmtBlockExprPtr body,
     std::vector<ElseClausePtr> elses
-  ) : Stmt(pos), cond(std::move(expr)), body(std::move(bstmt)),
+  ) : cond(std::move(cond)), body(std::move(body)),
       elses(std::move(elses)) {}
-  ~IfStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using IfStmtPtr = std::shared_ptr<IfStmt>;
-
-// while statement
-struct WhileStmt : Stmt {
-  ExprPtr      cond;
-  BlockStmtPtr body;
-
-  WhileStmt(util::Position pos, ExprPtr expr, BlockStmtPtr bstmt)
-    : Stmt(pos), cond(std::move(expr)), body(std::move(bstmt)) {}
-  ~WhileStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using WhileStmtPtr = std::shared_ptr<WhileStmt>;
-
-// for statement
-struct ForStmt : Stmt {
-  std::string  name;
-  ExprPtr      start;
-  ExprPtr      end;
-  BlockStmtPtr body;
-
-  ForStmt(util::Position pos, std::string name, ExprPtr lexpr,
-    ExprPtr rexpr, BlockStmtPtr bstmt
-  ) : Stmt(pos), name(std::move(name)), start(std::move(lexpr)),
-      end(std::move(rexpr)), body(std::move(bstmt)) {}
-  ~ForStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using ForStmtPtr = std::shared_ptr<ForStmt>;
-
-// loop statement
-struct LoopStmt : Stmt, Expr {
-  BlockStmtPtr body;
-
-  LoopStmt(util::Position pos, BlockStmtPtr bstmt)
-    : Node(pos), body(std::move(bstmt)) {}
-  ~LoopStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using LoopStmtPtr = std::shared_ptr<LoopStmt>;
-
-// break statement
-struct BreakStmt : Stmt {
-  std::optional<ExprPtr> value;
-
-  BreakStmt(util::Position pos, std::optional<ExprPtr> expr)
-    : Stmt(pos), value(std::move(expr)) {}
-  ~BreakStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using BreakStmtPtr = std::shared_ptr<BreakStmt>;
-
-// continue statement
-struct ContinueStmt : Stmt {
-  ~ContinueStmt() override = default;
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using ContinueStmtPtr = std::shared_ptr<ContinueStmt>;
-
-// null statement => ;
-struct NullStmt : Stmt {
-  ~NullStmt() override = default;
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using NullStmtPtr = std::shared_ptr<NullStmt>;
-
-// 函数表达式语句块
-struct FuncExprBlockStmt : Expr, BlockStmt {
-  ExprPtr value; // the final expression
-
-  FuncExprBlockStmt(std::vector<StmtPtr> stmts, ExprPtr expr)
-    : BlockStmt(std::move(stmts)), value(std::move(expr)) {}
-  ~FuncExprBlockStmt() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
-};
-using FuncExprBlockStmtPtr = std::shared_ptr<FuncExprBlockStmt>;
-
-struct IfExpr : Expr {
-  ExprPtr              cond;
-  FuncExprBlockStmtPtr tbranch;  // true branch
-  FuncExprBlockStmtPtr fbranch; // false branch
-
-  template <typename T, typename U, typename V>
-  IfExpr(util::Position pos, T &&cond, U &&tbranch, V &&fbranch)
-    : Expr(pos), cond(std::forward<T>(cond)),
-      tbranch(std::forward<U>(tbranch)),
-      fbranch(std::forward<V>(fbranch)) {}
   ~IfExpr() override = default;
-
-  void accept(visit::NodeVisitor& visitor) override;
+  void accept(NodeVisitor& visitor) override;
 };
 using IfExprPtr = std::shared_ptr<IfExpr>;
 
-} // namespace parser::ast
+// loop expression
+struct LoopExpr : Expr {
+  StmtBlockExprPtr body;
+
+  LoopExpr(StmtBlockExprPtr body)
+    : body(std::move(body)) {}
+  ~LoopExpr() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using LoopExprPtr = std::shared_ptr<LoopExpr>;
+
+// while loop expression
+struct WhileLoopExpr :LoopExpr {
+  ExprPtr cond;
+
+  WhileLoopExpr(ExprPtr cond, StmtBlockExprPtr body)
+    : LoopExpr(std::move(body)), cond(std::move(cond)) {}
+  ~WhileLoopExpr() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using WhileLoopExprPtr = std::shared_ptr<WhileLoopExpr>;
+
+struct IterableVal : Expr {
+  ExprPtr value;
+
+  IterableVal(ExprPtr value) : value(std::move(value)) {}
+  ~IterableVal() override = default;
+  void accept(NodeVisitor &visitor) override;
+};
+using IterableValPtr = std::shared_ptr<IterableVal>;
+
+struct Interval : Expr {
+  // 左闭右开区间
+  ExprPtr start;
+  ExprPtr end;
+
+  Interval(ExprPtr start, ExprPtr end)
+    : start(std::move(start)), end(std::move(end)) {}
+  ~Interval() override = default;
+  void accept(NodeVisitor &visitor) override;
+};
+using IntervalPtr = std::shared_ptr<Interval>;
+
+// for loop expression
+struct ForLoopExpr : LoopExpr {
+  bool mut;
+  std::string name;
+  ExprPtr iter;
+
+  ForLoopExpr(bool mut, std::string name,
+    ExprPtr iter, StmtBlockExprPtr body
+  ) : LoopExpr(std::move(body)), mut(mut),
+      name(std::move(name)), iter(std::move(iter)) {}
+  ~ForLoopExpr() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using ForLoopExprPtr = std::shared_ptr<ForLoopExpr>;
+
+} // namespace ast

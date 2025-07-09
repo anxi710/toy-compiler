@@ -1,13 +1,16 @@
+#include "panic.hpp"
 #include "token_type.hpp"
 
-namespace lex::token {
+namespace lex {
 
 /**
- * @brief  token::Type 转 string
- * @param  type enum class token::Type 中的一个
+ * @brief  Type 转 string
+ * @param  type enum class Type 中的一个
  * @return 对应的 string
  */
-std::string tokenType2str(TokenType type) {
+std::string
+tokenType2str(TokenType type)
+{
   switch (type) {
     case TokenType::END:       return "END";
     case TokenType::IF:        return "IF";
@@ -15,6 +18,7 @@ std::string tokenType2str(TokenType type) {
     case TokenType::WHILE:     return "WHILE";
     case TokenType::ID:        return "ID";
     case TokenType::I32:       return "I32";
+    case TokenType::BOOL:      return "BOOL";
     case TokenType::LET:       return "LET";
     case TokenType::RETURN:    return "RETURN";
     case TokenType::MUT:       return "MUT";
@@ -24,6 +28,8 @@ std::string tokenType2str(TokenType type) {
     case TokenType::LOOP:      return "LOOP";
     case TokenType::BREAK:     return "BREAK";
     case TokenType::CONTINUE:  return "CONTINUE";
+    case TokenType::TRUE:      return "TRUE";
+    case TokenType::FALSE:     return "FALSE";
     case TokenType::INT:       return "INT";
     case TokenType::LPAREN:    return "LPAREN";
     case TokenType::RPAREN:    return "RPAREN";
@@ -50,7 +56,8 @@ std::string tokenType2str(TokenType type) {
     case TokenType::ARROW:     return "ARROW";
   }
 
-  util::unreachable("lex::token::tokenType2str()");
+  util::unreachable("lex::tokenType2str()");
 }
 
-} // namespace lex::token
+} // namespace lex
+

@@ -3,9 +3,7 @@
 #include <string>
 #include <cstdint>
 
-#include "panic.hpp"
-
-namespace lex::token {
+namespace lex {
 
 // token 类型
 enum class TokenType : std::uint8_t {
@@ -14,12 +12,13 @@ enum class TokenType : std::uint8_t {
 
   // Group 1
   ID,
-  INT, // identifier, integer
+  INT,
   IF,
   ELSE,
   WHILE,
   FOR,
   I32,
+  BOOL,
   LET,
   RETURN,
   MUT,
@@ -28,6 +27,8 @@ enum class TokenType : std::uint8_t {
   LOOP,
   BREAK,
   CONTINUE,
+  TRUE,
+  FALSE,
 
   LPAREN,    //  (
   RPAREN,    //  )
@@ -42,22 +43,22 @@ enum class TokenType : std::uint8_t {
   PLUS, //  +
 
   // Group 2
-  ASSIGN,   //  =
-  MINUS,    //  -
-  MUL,      //  *
-  DIV,      //  /
-  GT,       //  >
-  LT,       //  <
-  DOT,      //  .
+  ASSIGN, //  =
+  MINUS,  //  -
+  MUL,    //  *
+  DIV,    //  /
+  GT,     //  >
+  LT,     //  <
+  DOT,    //  .
 
-  EQ,      //  ==
-  NEQ,     //  !=
-  GEQ,      //  >=
-  LEQ,      //  <=
-  DOTS,    //  ..
-  ARROW,   //  ->
+  EQ,     //  ==
+  NEQ,    //  !=
+  GEQ,    //  >=
+  LEQ,    //  <=
+  DOTS,   //  ..
+  ARROW   //  ->
 };
 
 auto tokenType2str(TokenType type) -> std::string;
 
-} // namespace lex::token
+} // namespace lex
