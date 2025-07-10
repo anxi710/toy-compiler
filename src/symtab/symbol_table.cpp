@@ -39,11 +39,11 @@ void
 SymbolTable::exitScope()
 {
   std::size_t idx = curname.find_last_of(':');
-  assert(idx >= curname.length());
+  assert(idx < curname.length());
 
   std::string name = curname.substr(idx + 1);
   curname = curname.substr(0, idx - 1);
-  assert(!scopes.contains(curname));
+  assert(scopes.contains(curname));
 
   curscope = scopes[curname];
 }

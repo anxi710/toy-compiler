@@ -22,6 +22,8 @@ public:
   void visit(ast::VarDeclStmt &vdstmt) override;
   void visit(ast::ExprStmt &estmt) override;
   void visit(ast::RetExpr &rexpr) override;
+  void visit(ast::BreakExpr &bexpr) override;
+  void visit(ast::ContinueExpr &cexpr) override;
   void visit(ast::AssignExpr &aexpr) override;
   void visit(ast::AssignElem &aelem) override;
   void visit(ast::Variable &var) override;
@@ -38,10 +40,9 @@ public:
   void visit(ast::ElseClause &eclause) override;
   void visit(ast::WhileLoopExpr&wlexpr) override;
   void visit(ast::ForLoopExpr &flexpr) override;
+  void visit(ast::Interval &interval) override;
+  void visit(ast::IterableVal &iter) override;
   void visit(ast::LoopExpr&lexpr) override;
-  void visit(ast::BreakExpr &bstmt) override;
-  void visit(ast::ContinueExpr &cstmt) override;
-  void visit(ast::EmptyStmt &estmt) override;
 
 private:
   SemanticContext  &ctx;      // semantic context

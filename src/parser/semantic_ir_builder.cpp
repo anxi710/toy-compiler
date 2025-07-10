@@ -70,7 +70,7 @@ SemanticIRBuilder::build(ast::ContinueExpr &cexpr)
 void
 SemanticIRBuilder::build(ast::AssignElem &aelem)
 {
-
+  sema.visit(aelem);
 }
 
 void

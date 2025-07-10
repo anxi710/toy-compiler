@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ranges>
 #include <vector>
 
 #include "position.hpp"
@@ -22,7 +23,6 @@ public:
 
     symtab.declareFunc(name, curfunc);
     symtab.enterScope(name, true);
-    delta = 0;
     scopenum = 0;
     scopestack.emplace_back(Scope::Kind::FUNC, name);
   }
@@ -62,10 +62,8 @@ public:
     arg->mut    = mut;
     arg->formal = true;
     arg->init   = true;
-    arg->delta  = delta;
     arg->type   = std::move(type);
 
-    delta += arg->type->memory;
     symtab.declareVar(name, arg);
     curfunc->argv.push_back(arg);
   }
@@ -76,10 +74,8 @@ public:
     var->mut    = mut;
     var->formal = false;
     var->init   = init;
-    var->delta  = delta;
     var->type   = std::move(type);
 
-    delta += var->type->memory;
     symtab.declareVar(name, var);
   }
 
@@ -95,13 +91,24 @@ public:
     return symtab.lookupFunc(name);
   }
 
+  bool inLoopCtx() {
+    for (const auto &scope : std::views::reverse(scopestack)) {
+      if (scope.kind == Scope::Kind::LOOP ||
+          scope.kind == Scope::Kind::WHILE ||
+          scope.kind == Scope::Kind::FOR) {
+        loopctx = scope;
+        return true;
+      }
+    }
+    return false;
+  }
+
 public:
   sym::SymbolTable  &symtab;
   type::TypeFactory  types;
 
   // 当前函数上下文
   sym::FunctionPtr curfunc;
-  int delta; // 局部变量堆栈偏移量
   int scopenum; // 函数内部子作用域个数
 
   // 作用域上下文
@@ -115,6 +122,7 @@ public:
     } kind;
     std::string name;
   };
+  Scope loopctx;
   std::vector<Scope> scopestack;
 
   // 特殊语句上下文

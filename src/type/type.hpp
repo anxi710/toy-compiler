@@ -109,10 +109,10 @@ struct ArrayType : Type {
   int     size_;
   TypePtr etype;
 
-  ArrayType(int size, TypePtr etype) : Type(TypeKind::ARRAY),
-    size_(size), etype(std::move(etype))
+  ArrayType(int size, TypePtr type) : Type(TypeKind::ARRAY),
+    size_(size), etype(std::move(type))
   {
-    memory = size * (etype->memory);
+    memory = size_ * (etype->memory);
     iterable = true;
   }
   ~ArrayType() override = default;
@@ -133,9 +133,9 @@ struct TupleType : Type {
   int                  size_;
   std::vector<TypePtr> etypes;
 
-  TupleType(std::vector<TypePtr> etypes)
-    : Type(TypeKind::TUPLE), size_(etypes.size()),
-      etypes(std::move(etypes))
+  TupleType(std::vector<TypePtr> types)
+    : Type(TypeKind::TUPLE), size_(types.size()),
+      etypes(std::move(types))
   {
     memory = 0;
     for (const auto &etype : etypes) {

@@ -43,4 +43,18 @@ Compiler::Compiler(const std::string &file)
   this->parser  = std::make_unique<par::Parser>(*lexer, *builder, *reporter);
 }
 
+void
+Compiler::generateIR(const std::string &file)
+{
+  std::string base = file.empty() ? "output" : file;
+  std::ofstream out;
+  out.open(base + std::string{".ir"});
+  if (!out) {
+    util::runtime_error("无法打开输出文件（.ir）");
+  }
+
+  ast_root = parser->parseProgram();
+}
+
 } // namespace cpr
+

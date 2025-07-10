@@ -40,7 +40,7 @@ struct Type : Node {
   ~Type() override = default;
   void accept(NodeVisitor &visitor) override;
 
-  Type& operator=(const Type& other) {
+  Type& operator=(const Type &other) {
     if (this == &other) {
       return *this;
     }
@@ -90,8 +90,8 @@ struct Stmt : virtual Node {
     DECL,
     EXPR,
   } kind;
+  bool unreachable;
   Type type;
-  bool unreachable = false;
 
   Stmt(Kind kind) : kind(kind) {}
   ~Stmt() override = default;
@@ -129,8 +129,8 @@ using VarDeclStmtPtr = std::shared_ptr<VarDeclStmt>;
 
 // Expression
 struct Expr : virtual Node {
-  bool use_side_effect;
-  bool is_ctlflow;
+  bool res_mut; // 表达式计算结果是否可变
+  bool used_as_stmt;
   Type type; // value type
 
   ~Expr() override = default;
@@ -261,7 +261,6 @@ using TupleAccessPtr = std::shared_ptr<TupleAccess>;
 
 // Expression Statement
 struct ExprStmt : Stmt {
-  bool used_as_stmt;
   ExprPtr expr;
 
   ExprStmt(ExprPtr expr) : Stmt(Kind::EXPR), expr(std::move(expr)) {}
@@ -273,6 +272,7 @@ using ExprStmtPtr = std::shared_ptr<ExprStmt>;
 
 // Statement Block Expression
 struct StmtBlockExpr : Expr {
+  bool has_ret;
   std::vector<StmtPtr> stmts; // statements
 
   StmtBlockExpr(std::vector<StmtPtr> stmts)

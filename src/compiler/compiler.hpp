@@ -19,10 +19,7 @@ public:
   Compiler(const std::string &file);
 
 public:
-  void generateToken();
-  void generateAST();
-  void generateSymbol();
-  void generateIR();
+  void generateIR(const std::string &file);
   void generateAssemble();
 
 private:
@@ -37,3 +34,4 @@ private:
 };
 
 } // namespace cpr
+

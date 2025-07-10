@@ -21,7 +21,6 @@ struct Variable : Symbol {
   bool mut;    // 变量本身是否可变
   bool formal; // 是否是形参
   bool init;   // 是否已经初始化
-  int  delta;  // 变量在堆栈上分配的地址
 
   type::TypePtr type; // 变量类型
 

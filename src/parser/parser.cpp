@@ -183,7 +183,10 @@ Parser::parseType()
 
     consume(TokenType::SEMICOLON, "Expect ';'");
 
-    int size = std::stoi(cur.value);
+    int size = 0;
+    if (check(TokenType::INT)) {
+      size = std::stoi(cur.value);
+    }
     consume(TokenType::INT, "Expect <NUM>");
     consume(TokenType::RBRACK, "Expect ']'");
 
@@ -321,10 +324,18 @@ Parser::parseExprStmt()
   util::Position pos = cur.pos;
   auto expr = parseExpr();
   auto estmt = std::make_shared<ast::ExprStmt>(expr);
+
+  // 一个表达式只有在两种情况下被用作表达式且需要设置
+  // 1. 后面有一个 semicolon
+  // 2. 位于语句块的最后
+  // 其余情况参考上下文
   if (check(TokenType::SEMICOLON)) {
-    //TODO: 上下文
+    expr->used_as_stmt = false;
     advance();
+  } else if (check(TokenType::LBRACE)) {
+    expr->used_as_stmt = false;
   } else {
+    expr->used_as_stmt = true;
   }
 
   estmt->pos = pos;
@@ -379,16 +390,28 @@ Parser::parseExpr()
      * x, x[idx], x.idx
      * 都即可以作为赋值语句的左值，又可以作为表达式的一个操作数
      */
-    auto elem = parseAssignElem();
-    if (check(TokenType::ASSIGN)) {
-      expr = parseAssignExpr(std::move(elem));
+
+
+    util::Position pos = cur.pos;
+    auto val = parseValue();
+    ast::AssignElemPtr aelem;
+    if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
+      aelem = parseAssignElem(val);
     } else {
-      expr = parseCmpExpr(elem);
+      aelem = std::make_shared<ast::AssignElem>(val);
+      aelem->pos = pos;
+      builder.build(*aelem);
+    }
+
+    if (check(TokenType::ASSIGN)) {
+      expr = parseAssignExpr(std::move(aelem));
+    } else {
+      expr = parseCmpExpr(aelem);
     }
   } else if (check(TokenType::INT) || check(TokenType::LPAREN)) {
     expr = parseCmpExpr();
   } else {
-    //TODO: error
+    //TODO: unexpected token!
   }
 
   return expr;
@@ -497,18 +520,24 @@ Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
   // 通过检查下一个 token 是 [ 还是 . 调用相应的 parse 函数
   // 可赋值元素必须要先识别一个 ArrayAccess 或 TupleAccess
   ast::AssignElemPtr aelem;
-  do {
+  if (check(TokenType::LBRACK)) {
+    aelem = parseArrayAccess(value);
+  } else if (check(TokenType::DOT)) {
+    aelem = parseTupleAccess(value);
+  } else {
+    util::unreachable("Parse::parseAssignElem()");
+  }
+
+  while (check(TokenType::LBRACK) || check(TokenType::LPAREN)) {
     if (check(TokenType::LBRACK)) {
       aelem = parseArrayAccess(aelem);
-    } else if (check(TokenType::LPAREN)) {
+    } else if (check(TokenType::DOT)) {
       aelem = parseTupleAccess(aelem);
     } else {
       util::unreachable("Parse::parseAssignElem()");
     }
-  } while (check(TokenType::LBRACK) || check(TokenType::LPAREN));
+  }
 
-  aelem->pos = pos;
-  builder.build(*aelem);
   return aelem;
 }
 
@@ -530,12 +559,13 @@ ast::TupleAccessPtr
 Parser::parseTupleAccess(ast::ExprPtr val)
 {
   util::Position pos = cur.pos;
-  consume(TokenType::LPAREN, "Expect '('");
+  consume(TokenType::DOT, "Expect '.'");
 
-  int idx = std::stoi(cur.value);
+  int idx = 0;
+  if (check(TokenType::INT)) {
+    idx = std::stoi(cur.value);
+  }
   consume(TokenType::INT, "Expect <NUM>");
-
-  consume(TokenType::RPAREN, "Expecr ')'");
 
   auto tacc = std::make_shared<ast::TupleAccess>(val, idx);
   tacc->pos = pos;
@@ -780,7 +810,7 @@ Parser::parseElement(std::optional<ast::AssignElemPtr> elem)
   //   ArrayAccess -> Value [ Expr ]
   //   TupleAccess -> Value . <NUM>
   auto val = parseValue();
-  if (check(TokenType::LPAREN) || check(TokenType::LBRACK)) {
+  if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
     return parseAssignElem(val);
   }
 
@@ -834,7 +864,7 @@ Parser::parseIfExpr()
   //             | epsilon
   std::vector<ast::ElseClausePtr> elses{};
   while (check(TokenType::ELSE)) {
-    bool end = !check(TokenType::IF);
+    bool end = !checkAhead(TokenType::IF);
     elses.push_back(parseElseClause());
     if (end) {
       break;
