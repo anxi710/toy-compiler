@@ -50,8 +50,9 @@ ReturnChecker::visit(ast::BracketExpr &bexpr)
 void
 ReturnChecker::visit(ast::IfExpr &iexpr)
 {
-  if ((*iexpr.elses.rbegin())->cond.has_value()) {
+  if (iexpr.elses.empty() || (*iexpr.elses.rbegin())->cond.has_value()) {
     has_ret = false;
+    return;
   }
 
   ReturnChecker rchecker;
@@ -89,4 +90,3 @@ ReturnChecker::visit(ast::LoopExpr &lexpr)
 }
 
 } // namespace sem
-

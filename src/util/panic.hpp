@@ -20,6 +20,7 @@ runtime_error(const std::string &msg) {
 
 [[noreturn]] inline void
 terminate() {
+  //TODO: 完善程序终止的处理逻辑，例如错误打印
   exit(1);
 }
 

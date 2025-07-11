@@ -15,7 +15,8 @@ enum class TypeKind : std::uint8_t {
   UNIT,
   ARRAY,
   TUPLE,
-  UNKNOWN
+  UNKNOWN,
+  ANY // 通用类型，用于匹配任意类型
 };
 
 enum class RefKind : std::uint8_t {
@@ -35,10 +36,26 @@ struct Type {
 
   Type(TypeKind kind) : kind(kind) {}
   virtual ~Type() = default;
-  virtual std::string str() const = 0;
+  [[nodiscard]] virtual std::string str() const = 0;
   virtual TypePtr getElemType(int idx = 0) = 0;
   virtual int size() = 0;
 };
+
+struct AnyType : Type {
+  AnyType() : Type(TypeKind::ANY) {
+    memory = 0;
+    iterable = false;
+  }
+  ~AnyType() override = default;
+  [[nodiscard]] std::string str() const override { return "any"; }
+  TypePtr getElemType(int idx = 0) override {
+    util::unreachable("AnyType::getElemType()");
+  }
+  int size() override {
+    util::unreachable("AnyType::size()");
+  }
+};
+using AnyTypePtr = std::shared_ptr<AnyType>;
 
 struct UnknownType : Type {
   UnknownType() : Type(TypeKind::UNKNOWN) {
@@ -46,7 +63,7 @@ struct UnknownType : Type {
     iterable = false;
   }
   ~UnknownType() override = default;
-  std::string str() const override { return "unknown"; }
+  [[nodiscard]] std::string str() const override { return "unknown"; }
   TypePtr getElemType(int idx = 0) override {
     util::unreachable("UnknownType::getElemType()");
   }
@@ -62,7 +79,7 @@ struct UnitType : Type {
     iterable = false;
   }
   ~UnitType() override = default;
-  std::string str() const override { return "()"; }
+  [[nodiscard]] std::string str() const override { return "()"; }
   TypePtr getElemType(int idx = 0) override {
     util::unreachable("UnitType::getElemType()");
   }
@@ -79,7 +96,7 @@ struct IntType : Type {
     iterable = false;
   }
   ~IntType() override = default;
-  std::string str() const override { return "i32"; }
+  [[nodiscard]] std::string str() const override { return "i32"; }
   TypePtr getElemType(int idx = 0) override {
     util::unreachable("IntType::getElemType()");
   }
@@ -95,7 +112,7 @@ struct BoolType : Type {
     iterable = false;
   }
   ~BoolType() override = default;
-  std::string str() const override { return "bool"; }
+  [[nodiscard]] std::string str() const override { return "bool"; }
   TypePtr getElemType(int idx = 0) override {
     util::unreachable("BoolType::getElemType()");
   }
@@ -117,7 +134,7 @@ struct ArrayType : Type {
   }
   ~ArrayType() override = default;
 
-  std::string str() const override {
+  [[nodiscard]] std::string str() const override {
     return std::format("[{}, {}]", etype->str(), size_);
   }
   TypePtr getElemType(int idx = 0) override {
@@ -145,7 +162,7 @@ struct TupleType : Type {
   }
   ~TupleType() override = default;
 
-  std::string str() const override {
+  [[nodiscard]] std::string str() const override {
     std::ostringstream oss;
     oss << "(";
     for (auto iter = etypes.cbegin(); iter != etypes.end(); ++iter) {
@@ -168,4 +185,3 @@ struct TupleType : Type {
 using TupleTypePtr = std::shared_ptr<TupleType>;
 
 } // namespace type
-

@@ -3,6 +3,10 @@
 
 namespace ast {
 
+// 由于 visitor 中需要使用到 AST 结点的完整定义
+// 所以不能将 accept 放在 ast.hpp 中定义
+// 否则会导致循环依赖，从而无法正常编译
+
 void
 Prog::accept(NodeVisitor &visitor)
 {

@@ -1,16 +1,21 @@
-#include "parser.hpp"
-
+#include <iostream>
 #include <cassert>
 
 #include "panic.hpp"
+#include "parser.hpp"
 
 using namespace lex;
 
 namespace par {
 
-std::optional<Token>
+/**
+ * @brief  获取下一个 token
+ * @return next token
+ */
+Token
 Parser::nextToken()
 {
+  // 检查了是否有值，所以可以直接返回一个 Token，而不是 std::optional<Token>
   if (auto token = lexer.nextToken(); token.has_value()) {
     return token.value();
   }
@@ -18,46 +23,73 @@ Parser::nextToken()
   util::terminate();
 }
 
+/**
+ * @brief 向前扫描一个 token
+ */
 void
 Parser::advance()
 {
+  // look ahead 是通过调用 next token
+  // 获取下一个 token 实现的，因此需要检查 la 是否有值
+  // 若有值直接调用 nextToken() 获取到的是下一个的下一个
   if (la.has_value()) {
     cur = la.value();
     la.reset(); // 清除 la 中的值
   } else {
-    cur = nextToken().value();
+    cur = nextToken();
   }
 }
 
+/**
+ * @brief  按指定的 type 匹配一个 token
+ * @param  type TokenType（指定的 token 类型）
+ * @return 是否匹配成功
+ */
 bool
 Parser::match(TokenType type)
 {
-  if (check(type)) {
+  if (check(type)) { // 检查当前 token 是否是指定类型
     advance();
     return true;
   }
   return false;
 }
 
+/**
+ * @brief  检查当前 token 是否为指定类型
+ * @param  type TokenType（指定的 token 类型）
+ * @return 是否是指定类型
+ */
 bool
 Parser::check(TokenType type) const
 {
   return cur.type == type;
 }
 
+/**
+ * @brief  向前检查一个 token 是否为指定类型
+ * @param  type TokenType（指定的 token 类型）
+ * @return 是否是指定类型
+ */
 bool
 Parser::checkAhead(TokenType type)
 {
+  // 向前看一个 token，如果 la 已经有值则无需获取！
   if (!la.has_value()) {
     la = nextToken();
   }
   return la.has_value() && la.value().type == type;
 }
 
+/**
+ * @brief 按指定类型消耗一个 token
+ * @param type TokenType（指定的 token 类型）
+ * @param msg  错误信息（如果当前 token 不是指定的类型，则报错）
+ */
 void
 Parser::consume(TokenType type, const std::string &msg)
 {
-  if (!match(type)) {
+  if (!match(type)) { // 并不会杀死进程
     reporter.report(
       err::ParErrType::UNEXPECT_TOKEN,
       msg, cur.pos, cur.value
@@ -65,16 +97,22 @@ Parser::consume(TokenType type, const std::string &msg)
   }
 }
 
+/**
+ * @brief  解析 ast::Prog
+ * @return 解析到的 ast::Prog 结点指针
+ */
 ast::ProgPtr
 Parser::parseProgram()
 {
   // Prog -> (FuncDecl)*
 
+  // 循环解析函数声明
   std::vector<ast::DeclPtr> decls;
   while (check(TokenType::FN)) {
     decls.push_back(parseFuncDecl());
   }
 
+  // 检查 Prog 的语义、拼接各函数的中间代码
   auto prog = std::make_shared<ast::Prog>(decls);
   builder.build(*prog);
   return prog;
@@ -165,8 +203,7 @@ Parser::parseType()
 {
   // Type -> i32
   //       | [ Type ; <NUM> ]
-  //       | ( (Type)? (, Type)* )
-  // tips: () is unit type
+  //       | ( Type (, Type)* )
 
   ast::Type type;
   type.pos = cur.pos;
@@ -194,7 +231,7 @@ Parser::parseType()
     return type;
   }
 
-  // ( (Type)? (, Type)* )
+  // ( Type (, Type)* )
   if (check(TokenType::LPAREN)) {
     advance();
 
@@ -207,12 +244,17 @@ Parser::parseType()
       }
       advance();
       is_tuple = true;
+      if (etypes.size() > 1 && check(TokenType::RPAREN)) {
+        //TODO: unexpected token
+        std::cerr << "parseType(): unexpected token" << std::endl;
+      }
     }
 
     consume(TokenType::RPAREN, "Expect ')'");
 
     if (0 == etypes.size()) {
       // ()
+      //TODO: 不支持直接声明一个 unit 类型的变量
       type.type = type::TypeFactory::UNIT_TYPE;
       return type;
     }
@@ -240,7 +282,7 @@ Parser::parseStmtBlockExpr()
 
   std::vector<ast::StmtPtr> stmts{};
   while (!check(TokenType::RBRACE)) {
-    auto stmt = parseStmt();
+    stmts.push_back(parseStmt());
   }
 
   consume(TokenType::RBRACE, "Expect '}'");
@@ -332,7 +374,7 @@ Parser::parseExprStmt()
   if (check(TokenType::SEMICOLON)) {
     expr->used_as_stmt = false;
     advance();
-  } else if (check(TokenType::LBRACE)) {
+  } else if (check(TokenType::RBRACE)) {
     expr->used_as_stmt = false;
   } else {
     expr->used_as_stmt = true;
@@ -390,8 +432,6 @@ Parser::parseExpr()
      * x, x[idx], x.idx
      * 都即可以作为赋值语句的左值，又可以作为表达式的一个操作数
      */
-
-
     util::Position pos = cur.pos;
     auto val = parseValue();
     ast::AssignElemPtr aelem;
@@ -408,7 +448,7 @@ Parser::parseExpr()
     } else {
       expr = parseCmpExpr(aelem);
     }
-  } else if (check(TokenType::INT) || check(TokenType::LPAREN)) {
+  } else if (check(TokenType::INT) || check(TokenType::LPAREN) || check(TokenType::LBRACK)) {
     expr = parseCmpExpr();
   } else {
     //TODO: unexpected token!
@@ -726,12 +766,12 @@ Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
   if (check(TokenType::LBRACK)) {
     advance();
     std::vector<ast::ExprPtr> elems{};
-    while (!check(TokenType::RBRACK)) {
+    if (!check(TokenType::RBRACK)) {
       elems.push_back(parseExpr());
-      if (!check(TokenType::COMMA)) {
-        break;
-      }
-      advance();
+    }
+    while (!check(TokenType::RBRACK)) {
+      consume(TokenType::COMMA, "Expect ','");
+      elems.push_back(parseExpr());
     }
     advance();
 
@@ -755,6 +795,10 @@ Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
       }
       is_tuple_elem = true;
       advance();
+      if (elems.size() > 1 && check(TokenType::RPAREN)) {
+        //TODO: unexpected token ','
+        std::cerr << "parseFactor(): unexpected token" << std::endl;
+      }
     }
 
     consume(TokenType::RPAREN, "Expect ')'");
@@ -937,7 +981,13 @@ Parser::parseForLoopExpr()
     mut = true;
   }
   std::string name = cur.value;
+  util::Position varpos = cur.pos;
   consume(TokenType::ID, "Expect '<ID>'");
+
+  // 这里简单的将迭代器的类型认为是 i32
+  // 实际类型应该由可迭代对象的元素的类型确定
+  builder.ctx->declareVar(name, mut, true,
+    type::TypeFactory::INT_TYPE, varpos);
 
   consume(TokenType::IN, "Expect 'in'");
 

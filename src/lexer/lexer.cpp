@@ -20,16 +20,26 @@ Lexer::reset(const util::Position &pos)
   this->peek = this->text[pos.row][pos.col];
 }
 
+/**
+ * @brief lexer 前指向位置移动指定字符数
+ * @param delta 位移量
+ */
 void
 Lexer::shiftPos(std::size_t delta)
 {
   pos.col += delta;
+  // 若到达句尾，则换行
   if (pos.col >= text[pos.row].length()) {
     ++pos.row;
     pos.col = 0;
   }
 };
 
+/**
+ * @brief  通过正则表达式匹配 token
+ * @param  view 扫描窗口
+ * @return 识别到的 token，没有则返回 std::nullopt
+ */
 std::optional<Token>
 Lexer::matchThroughRE(const std::string &view)
 {
@@ -39,22 +49,29 @@ Lexer::matchThroughRE(const std::string &view)
   };
 
   // 使用正则表达式检测 INT、ID 两类词法单元
-  for (const auto &[type, expression] : patterns) {
+  for (const auto &[type, re] : patterns) {
     std::smatch match;
-    if (std::regex_search(view, match, expression)) {
+    // 根据 pattern 识别，结果存储在 match 中
+    if (std::regex_search(view, match, re)) {
       auto pos = this->pos;
       shiftPos(match.length(0));
+      // 检查识别到的标识符是否是关键字
       if (type == TokenType::ID && this->keytab.iskeyword(match.str(0))) {
         auto keytype = this->keytab.getKeyword(match.str(0));
         return Token{keytype, match.str(0), pos};
-      }
+      } // enf of if
       return Token{type, match.str(0), pos};
-    }
-  }
+    } // end of if
+  } // end of for
 
   return std::nullopt;
 }
 
+/**
+ * @brief  通过 DFA 匹配 token
+ * @param  view 扫描窗口
+ * @return 识别到的 token，没有则返回 std::nullopt
+ */
 std::optional<Token>
 Lexer::matchThroughDFA(const std::string &view)
 {
@@ -142,7 +159,7 @@ Lexer::matchThroughDFA(const std::string &view)
         token = {TokenType::NEQ, "!="};
       }
       break;
-  }
+  } // end of switch
 
   token.pos = this->pos;
   if (!token.value.empty()) {
@@ -155,7 +172,7 @@ Lexer::matchThroughDFA(const std::string &view)
 
 /**
  * @brief  获取下一个词法单元
- * @return token
+ * @return next token，如果识别到未知 token 则返回 std::nullopt
  */
 std::optional<Token>
 Lexer::nextToken()
@@ -167,17 +184,17 @@ Lexer::nextToken()
 
   // 忽略所有空白字符
   while (this->pos.row < this->text.size()) {
-    if (this->text[this->pos.row].empty()) {
+    if (this->text[this->pos.row].empty()) { // 忽略空行
       ++this->pos.row;
       this->pos.col = 0;
-    } else if (
+    } else if ( // 忽略空白字符
       static_cast<bool>(std::isspace(this->text[this->pos.row][this->pos.col]))
     ) {
       shiftPos(1);
     } else {
       break;
-    }
-  }
+    } // end of if
+  } // end of while
 
   // 再次判断是否到结尾
   if (this->pos.row >= this->text.size()) {
@@ -209,4 +226,4 @@ Lexer::nextToken()
   return std::nullopt;
 }
 
-} // namespace lex::base
+} // namespace lex

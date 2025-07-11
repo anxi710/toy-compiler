@@ -52,6 +52,7 @@ public:
   TypeFactory() = default;
 
 public:
+  static const TypePtr ANY_TYPE;
   static const TypePtr INT_TYPE;
   static const TypePtr BOOL_TYPE;
   static const TypePtr UNIT_TYPE;
@@ -93,5 +94,7 @@ public:
 private:
   std::unordered_map<TypeKey, TypePtr> cache;
 };
+
+bool typeEquals(const TypePtr &lhs, const TypePtr &rhs);
 
 } // namespace type

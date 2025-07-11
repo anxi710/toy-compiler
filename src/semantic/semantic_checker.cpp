@@ -1,3 +1,4 @@
+#include <iostream>
 #include <ranges>
 #include <cassert>
 
@@ -11,12 +12,24 @@ namespace sem {
 void
 SemanticChecker::visit(ast::Prog &prog)
 {
-
 }
 
 void
 SemanticChecker::visit(ast::FuncDecl &fdecl)
 {
+  if (!fdecl.body->has_ret) {
+    if (fdecl.header->type == type::TypeFactory::UNIT_TYPE) {
+      auto retexpr = std::make_shared<ast::RetExpr>(std::nullopt);
+      retexpr->used_as_stmt = true;
+      retexpr->type = ast::Type{type::TypeFactory::UNIT_TYPE};
+      auto retstmt = std::make_shared<ast::ExprStmt>(retexpr);
+      retstmt->type = ast::Type{type::TypeFactory::UNIT_TYPE};
+      fdecl.body->stmts.push_back(std::move(retstmt));
+    } else {
+      //TODO: 函数有明确的返回类型，但是没有返回一个值
+      std::cerr << "函数有明确的返回类型，但是没有返回一个值" << std::endl;
+    }
+  }
 }
 
 void
@@ -29,7 +42,7 @@ SemanticChecker::visit(ast::FuncHeaderDecl &fhdecl)
 void
 SemanticChecker::visit(ast::Arg &arg)
 {
-  ctx.declareArg(arg.name, arg.mut, arg.type.type);
+  ctx.declareArg(arg.name, arg.mut, arg.type.type, arg.pos);
 }
 
 void
@@ -37,32 +50,41 @@ SemanticChecker::visit(ast::StmtBlockExpr &sbexpr)
 {
   ReturnChecker rchecker;
   sbexpr.accept(rchecker);
-  sbexpr.type = (*sbexpr.stmts.rbegin())->type;
+  sbexpr.has_ret = rchecker.has_ret;
+
+  if (sbexpr.stmts.empty()) {
+    sbexpr.type = type::TypeFactory::UNIT_TYPE;
+  } else {
+    sbexpr.type = (*sbexpr.stmts.rbegin())->type;
+  }
+
+  //TODO: 检查是否所有变量都被正确推导出了类型
 }
 
 void
 SemanticChecker::visit(ast::VarDeclStmt &vdstmt)
 {
-  type::TypePtr type = vdstmt.type.type;
-  if (type != type::TypeFactory::UNKNOWN_TYPE) {
+  if (vdstmt.vartype != type::TypeFactory::UNKNOWN_TYPE) {
     // let (mut)? <ID> : Type ;
     if (vdstmt.value.has_value() &&
-        vdstmt.type != vdstmt.value.value()->type
+        vdstmt.vartype != vdstmt.value.value()->type
     ) {
       // let (mut)? <ID> : Type = Expr ;
-      //TODO: Error
+      //TODO: 表达式的值的类型和变量指定的类型不一致
+      std::cerr << "表达式的值的类型和变量指定的类型不一致" << std::endl;
     }
   } else {
     // let (mut)? <ID> ;
     if (vdstmt.value.has_value()) {
       // let (mut)? <ID> = Expr ;
       // Type Inference
-      vdstmt.type = vdstmt.value.value()->type;
+      vdstmt.vartype = vdstmt.value.value()->type;
     }
   }
 
   bool init = vdstmt.value.has_value();
-  ctx.declareVar(vdstmt.name, vdstmt.mut, init, type);
+  ctx.declareVar(vdstmt.name, vdstmt.mut, init, vdstmt.vartype.type, vdstmt.pos);
+  vdstmt.type = type::TypeFactory::UNIT_TYPE; // 变量声明语句使用的是副作用！！！
 }
 
 void
@@ -81,10 +103,9 @@ SemanticChecker::visit(ast::RetExpr &rexpr)
   if (rexpr.retval.has_value()) {
     // 有返回值表达式
     ast::ExprPtr retval = rexpr.retval.value();
-    ast::Type rv_type = retval->type;
     if (ctx.curfunc->type != type::TypeFactory::UNIT_TYPE) {
       // 函数返回类型非空
-      if (ctx.curfunc->type != rv_type.type) {
+      if (ctx.curfunc->type != retval->type) {
         // 返回值表达式的类型与函数返回值类型不匹配
         reporter.report(
           err::SemErrType::RETTYPE_MISMATCH,
@@ -102,7 +123,7 @@ SemanticChecker::visit(ast::RetExpr &rexpr)
     }
   } else {
     // return ;
-    if (ctx.curfunc->type != type::TypeFactory::UNIT_TYPE) {
+    if (!type::typeEquals(ctx.curfunc->type, type::TypeFactory::UNIT_TYPE)) {
       // 函数返回类型非空但是返回语句无返回值
       reporter.report(
         err::SemErrType::MISSING_RETVAL,
@@ -122,11 +143,13 @@ SemanticChecker::visit(ast::BreakExpr &bexpr)
 {
   if (!ctx.inLoopCtx()) {
     //TODO: 当前不在循环上下文中
+    std::cerr << "当前不在循环上下文中" << std::endl;
   }
 
   if (bexpr.value.has_value()) {
     if (ctx.loopctx.kind != SemanticContext::Scope::Kind::LOOP) {
       //TODO: break 含有返回值但是没在 loop 中
+      std::cerr << "break 含有返回值但是没在 loop 中" << std::endl;
 
       bexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
     } else {
@@ -168,7 +191,6 @@ void
 SemanticChecker::visit(ast::ArrayAccess &aacc)
 {
   type::TypePtr arr_type = aacc.value->type.type;
-  type::TypePtr idx_type = aacc.idx->type.type;
   type::TypePtr elem_type;
   if (!type::TypeFactory::isArray(arr_type)) {
     //TODO: 数组访问对象不是数组类型
@@ -177,7 +199,7 @@ SemanticChecker::visit(ast::ArrayAccess &aacc)
     aacc.res_mut = true;
   } else {
     //TODO: 访问越界是运行时的问题！！！
-    if (idx_type != type::TypeFactory::INT_TYPE) {
+    if (aacc.idx->type != type::TypeFactory::INT_TYPE) {
       //TODO: 用于访问的数组下标不是一个整数
 
       elem_type = type::TypeFactory::UNKNOWN_TYPE;
@@ -219,6 +241,7 @@ SemanticChecker::visit(ast::TupleAccess &tacc)
 void
 SemanticChecker::visit(ast::AssignElem &aelem)
 {
+  aelem.type = aelem.value->type;
   aelem.res_mut = aelem.value->res_mut;
 }
 
@@ -242,8 +265,8 @@ SemanticChecker::visit(ast::AssignExpr &aexpr)
 void
 SemanticChecker::visit(ast::CmpExpr &cexpr)
 {
-  if (cexpr.lhs->type.type != type::TypeFactory::INT_TYPE ||
-    cexpr.rhs->type.type != type::TypeFactory::INT_TYPE) {
+  if (cexpr.lhs->type != type::TypeFactory::INT_TYPE ||
+    cexpr.rhs->type != type::TypeFactory::INT_TYPE) {
     //TODO: 只有两个整数可以相互比较！
 
     return;
@@ -256,8 +279,8 @@ SemanticChecker::visit(ast::CmpExpr &cexpr)
 void
 SemanticChecker::visit(ast::AriExpr &aexpr)
 {
-  if (aexpr.lhs->type.type != type::TypeFactory::INT_TYPE ||
-    aexpr.rhs->type.type != type::TypeFactory::INT_TYPE) {
+  if (aexpr.lhs->type != type::TypeFactory::INT_TYPE ||
+    aexpr.rhs->type != type::TypeFactory::INT_TYPE) {
     //TODO: 只有两个整数可以进行算术运算！
 
     return;
@@ -343,9 +366,9 @@ SemanticChecker::visit(ast::CallExpr &cexpr)
   // 检查参数类型是否匹配
   auto aparam_types = cexpr.argv
     | std::views::transform([](const auto &arg) {
-        return arg->type.type;
+        return arg->type;
       })
-    | std::ranges::to<std::vector<type::TypePtr>>();
+    | std::ranges::to<std::vector<ast::Type>>();
 
   auto fparam_types = func->argv
     | std::views::transform([](const auto &arg) {
@@ -368,16 +391,30 @@ SemanticChecker::visit(ast::CallExpr &cexpr)
 void
 SemanticChecker::visit(ast::IfExpr &iexpr)
 {
-  if (iexpr.cond->type.type != type::TypeFactory::BOOL_TYPE) {
+  if (iexpr.cond->type != type::TypeFactory::BOOL_TYPE) {
     //TODO: condtion 值的类型无法用于逻辑判断
     // condtion 在解析时并不保证是一个 CmpExpr
     // 因此需要再次判断
   }
 
-  type::TypePtr type = iexpr.body->type.type;
+  ast::Type type = type::TypeFactory::UNKNOWN_TYPE;
+  if (iexpr.body->has_ret) {
+    for (const auto &eclause : iexpr.elses) {
+      if (!eclause->body->has_ret) {
+        type = eclause->body->type;
+        break;
+      }
+    }
+    if (type == type::TypeFactory::UNKNOWN_TYPE) {
+      type = type::TypeFactory::ANY_TYPE;
+    }
+  } else {
+    type = iexpr.body->type;
+  }
+
   for (const auto &eclause : iexpr.elses) {
-    if (eclause->body->type.type != type) {
-      //TODO: else 分支的类型和 if 分支不同
+    if (!eclause->body->has_ret && eclause->body->type != type) {
+      //TODO: else 分支的类型与推导出的类型不一致
     }
   }
 
@@ -385,6 +422,8 @@ SemanticChecker::visit(ast::IfExpr &iexpr)
       iexpr.elses.back()->cond.has_value()) {
     //TODO: 推断出的类型不是 unit，但是没有 else 分支
   }
+
+  iexpr.type = type;
 }
 
 void
@@ -393,7 +432,7 @@ SemanticChecker::visit(ast::ElseClause &eclause)
   if (eclause.cond.has_value()) {
     // else if
     auto cond = eclause.cond.value();
-    if (cond->type.type != type::TypeFactory::BOOL_TYPE) {
+    if (cond->type != type::TypeFactory::BOOL_TYPE) {
       //TODO: condition 值的类型无法用于逻辑判断
     }
   }
@@ -402,11 +441,11 @@ SemanticChecker::visit(ast::ElseClause &eclause)
 void
 SemanticChecker::visit(ast::WhileLoopExpr &wlexpr)
 {
-  if (wlexpr.cond->type.type != type::TypeFactory::BOOL_TYPE) {
+  if (wlexpr.cond->type != type::TypeFactory::BOOL_TYPE) {
     //TODO: condition 值的类型无法用于条件判断
   }
 
-  if (wlexpr.body->type.type != type::TypeFactory::UNIT_TYPE) {
+  if (wlexpr.body->type != type::TypeFactory::UNIT_TYPE) {
     //TODO: while 循环期望语句块表达式的类型是 unit type
   }
 
@@ -416,7 +455,7 @@ SemanticChecker::visit(ast::WhileLoopExpr &wlexpr)
 void
 SemanticChecker::visit(ast::ForLoopExpr &flexpr)
 {
-  if (flexpr.body->type.type != type::TypeFactory::UNIT_TYPE) {
+  if (flexpr.body->type != type::TypeFactory::UNIT_TYPE) {
     //TODO: for 循环期望语句块表达式的类型是 unit type
   }
   flexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
@@ -425,9 +464,9 @@ SemanticChecker::visit(ast::ForLoopExpr &flexpr)
 void
 SemanticChecker::visit(ast::Interval &interval)
 {
-  if (interval.start->type.type != type::TypeFactory::INT_TYPE) {
+  if (interval.start->type != type::TypeFactory::INT_TYPE) {
     //TODO:
-  } else if (interval.end->type.type != type::TypeFactory::INT_TYPE) {
+  } else if (interval.end->type != type::TypeFactory::INT_TYPE) {
     //TODO:
   }
 
@@ -440,6 +479,7 @@ SemanticChecker::visit(ast::IterableVal &iter)
   if (!type::TypeFactory::isArray(type)) {
     //TODO: 只有 Array 是可以迭代的！
   }
+  iter.type = iter.value->type;
 }
 
 void
@@ -448,4 +488,3 @@ SemanticChecker::visit(ast::LoopExpr&lexpr)
 }
 
 } // namespace sem
-

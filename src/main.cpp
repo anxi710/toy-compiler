@@ -1,11 +1,6 @@
 #include <getopt.h>
 
-#include <tuple>
-#include <memory>
-#include <sstream>
-#include <fstream>
-#include <iostream>
-#include <filesystem>
+#include <print>
 
 #include "compiler.hpp"
 
@@ -19,10 +14,9 @@ printVersion()
    * 使用语义版本控制 (SemVer) 原则设置版本号
    * major.minor.patch
    */
-  std::cout << "Toy compiler: version 0.6.2" << std::endl
-            << "This is a toy compiler developed by xh, csx and qsw."
-            << std::endl
-            << "Have fun with it!" << std::endl;
+  std::println("Toy compiler: version 0.7.1");
+  std::println("This is a toy compiler developed by xh, csx and qsw.");
+  std::println("Have fun with it!");
 }
 
 /**
@@ -32,37 +26,25 @@ printVersion()
 void
 printHelp(const char *const exec)
 {
-  std::cout
-    << "Usage: " << exec << " [options]" << std::endl
-    << std::endl
-    << "This is a Rust-like programming language compiler." << std::endl
-    << std::endl
-    << "Options:" << std::endl
-    << "  -h, --help             show help" << std::endl
-    << "  -v, -V, --version      show version" << std::endl
-    << "  -i, --input filename   set input file (with suffix, must set an "
-       "input filename)"
-    << std::endl
-    << "  -o, --output filename  set output file (without suffix)"
-    << std::endl
-    // << "  -t, --token            output the segmented token only" << std::endl
-    // << "  -p, --parse            output the abstract syntax tree (AST) only"
-    // << std::endl
-    // << "  -s, --semantic         check the semantics only" << std::endl
-    // << "  -g, --generate         generate IR only" << std::endl
-    << "  --ir,                  generate IR only" << std::endl
-    << std::endl
-    << "Examples:" << std::endl
-    << "  $ path/to/toy_compiler -t -i test.txt" << std::endl
-    << "  $ path/to/toy_compiler -p -i test.txt" << std::endl
-    << "  $ path/to/toy_compiler -t -p -i test.txt" << std::endl
-    << "  $ path/to/toy_compiler -s -i test.txt -o output" << std::endl
-    << std::endl
-    << "Tips:" << std::endl
-    << "  Upon completion of the program execution, you can run this command"
-    << std::endl
-    << "  to generate the abstract syntax tree diagram:" << std::endl
-    << "    $ dot -Tpng path/to/output.dot -o AST.png" << std::endl;
+  std::println("Usage: {} [options]", exec);
+  std::println("");
+  std::println("This is a Rust-like programming language compiler.");
+  std::println("");
+  std::println("Options:");
+  std::println("  -h, --help             show help");
+  std::println("  -v, -V, --version      show version");
+  std::println("  -i, --input filename   set input file (with suffix, must set an input filename)");
+  std::println("  -o, --output filename  set output file (without suffix)");
+  std::println("  --ir,                  generate IR only");
+  std::println("");
+  std::println("Examples:");
+  std::println("  $ path/to/toy_compiler --ir -i test.txt");
+  std::println("  $ path/to/toy_compiler --ir -i test.txt -o output");
+  std::println("");
+  std::println("Tips:");
+  std::println("  Upon completion of the program execution, you can run this command");
+  std::println("  to generate the abstract syntax tree diagram:");
+  std::println("    $ dot -Tpng path/to/output.dot -o AST.png");
 }
 
 /**
@@ -112,15 +94,14 @@ argumentParsing(int argc, char *argv[])
         flag_ir = true;
         break;
       case '?': // 无效选项
-        std::cerr << "解析到未知参数" << std::endl
-                  << "尝试运行 \'./toy_compiler --help\' 获取更多信息"
-                  << std::endl;
+        std::println(stderr, "解析到未知参数");
+        std::println(stderr, "尝试运行 \'./toy_compiler --help\' 获取更多信息");
         exit(1);
     } // end switch
   } // end while
 
   if (in_file.empty()) {
-    std::cerr << "缺失命令行参数: -i/--input" << std::endl;
+    std::println(stderr, "缺失命令行参数: -i/--input");
     exit(1);
   }
 

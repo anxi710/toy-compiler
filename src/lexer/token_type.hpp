@@ -11,24 +11,16 @@ enum class TokenType : std::uint8_t {
   END, // end of file
 
   // Group 1
+  FN, RETURN,
   ID,
   INT,
-  IF,
-  ELSE,
-  WHILE,
-  FOR,
-  I32,
-  BOOL,
-  LET,
-  RETURN,
-  MUT,
-  FN,
+  IF, ELSE,
+  WHILE, FOR, LOOP,
+  I32, BOOL,
+  LET, MUT,
   IN,
-  LOOP,
-  BREAK,
-  CONTINUE,
-  TRUE,
-  FALSE,
+  BREAK, CONTINUE,
+  TRUE, FALSE,
 
   LPAREN,    //  (
   RPAREN,    //  )

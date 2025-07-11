@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+
+#include "ir_quad.hpp"
 #include "type_factory.hpp"
 
 namespace ast {
@@ -9,6 +12,8 @@ class NodeVisitor;
 // 所有 AST 结点的基类
 struct Node {
   util::Position pos;
+
+  std::vector<ir::IRQuadPtr> ircode; // 存放结点对应的四元式序列
 
   virtual ~Node() = default;
   virtual void accept(NodeVisitor &visitor) = 0;
@@ -32,11 +37,12 @@ struct Prog : virtual Node {
 };
 using ProgPtr = std::shared_ptr<Prog>;
 
+// Type - 封装了 type::Type
 struct Type : Node {
   type::TypePtr type;
 
   Type() : type(type::TypeFactory::UNKNOWN_TYPE) {}
-  explicit Type(type::TypePtr t) : type(std::move(t)) {}
+  Type(type::TypePtr t) : type(std::move(t)) {}
   ~Type() override = default;
   void accept(NodeVisitor &visitor) override;
 
@@ -48,7 +54,7 @@ struct Type : Node {
     return *this;
   }
   bool operator==(const Type& other) const {
-    return this->type == other.type;
+    return type::typeEquals(this->type, other.type);
   }
 };
 
@@ -86,11 +92,11 @@ using FuncHeaderDeclPtr = std::shared_ptr<FuncHeaderDecl>;
 // Statement
 struct Stmt : virtual Node {
   enum class Kind : std::uint8_t {
-    EMPTY,
-    DECL,
-    EXPR,
+    EMPTY, // 空语句
+    DECL,  // 声明语句（当前只有变量声明语句）
+    EXPR,  // 表达式语句
   } kind;
-  bool unreachable;
+  bool unreachable; // 是否可以执行到
   Type type;
 
   Stmt(Kind kind) : kind(kind) {}
@@ -108,29 +114,30 @@ struct EmptyStmt : Stmt {
 using EmptyStmtPtr = std::shared_ptr<EmptyStmt>;
 
 struct Expr;
-using  ExprPtr = std::shared_ptr<Expr>;
+using ExprPtr = std::shared_ptr<Expr>;
 
 // Variable Declaration Statement
 struct VarDeclStmt : Stmt {
   bool mut;
   std::string name;
-  Type type; // variable type
+  Type vartype; // variable type
   std::optional<ExprPtr> value;
 
   VarDeclStmt(bool mut, std::string name,
-    const Type &type, std::optional<ExprPtr> expr
+    const Type &vartype, std::optional<ExprPtr> expr
   ) : Stmt(Kind::DECL), mut(mut), name(std::move(name)),
-      type(type), value(std::move(expr)) {}
+      vartype(vartype), value(std::move(expr)) {}
   ~VarDeclStmt() override = default;
-
   void accept(NodeVisitor& visitor) override;
 };
 using VarDeclStmtPtr = std::shared_ptr<VarDeclStmt>;
 
 // Expression
 struct Expr : virtual Node {
+  ir::IRValue irval; // 表达式计算结果存储位置
+
   bool res_mut; // 表达式计算结果是否可变
-  bool used_as_stmt;
+  bool used_as_stmt; // 是否用作一个语句
   Type type; // value type
 
   ~Expr() override = default;
@@ -144,7 +151,6 @@ struct RetExpr : Expr {
   RetExpr(std::optional<ExprPtr> retval)
     : retval(std::move(retval)) {}
   ~RetExpr() override = default;
-
   void accept(NodeVisitor& visitor) override;
 };
 using RetExprPtr = std::shared_ptr<RetExpr>;
@@ -179,10 +185,10 @@ enum class CmpOper : std::uint8_t {
 
 // Arithmetic Operator
 enum class AriOper : std::uint8_t {
-  ADD,
-  SUB,
-  MUL,
-  DIV
+  ADD, // +
+  SUB, // -
+  MUL, // *
+  DIV  // /
 };
 
 // Comparison Expression
@@ -239,6 +245,7 @@ struct AssignElem : Expr {
 };
 using AssignElemPtr = std::shared_ptr<AssignElem>;
 
+// 数组访问
 struct ArrayAccess : AssignElem {
   ExprPtr idx; // 索引值
 
@@ -249,6 +256,7 @@ struct ArrayAccess : AssignElem {
 };
 using ArrayAccessPtr = std::shared_ptr<ArrayAccess>;
 
+// 元组访问
 struct TupleAccess : AssignElem {
   int idx; // 索引值
 
@@ -265,20 +273,18 @@ struct ExprStmt : Stmt {
 
   ExprStmt(ExprPtr expr) : Stmt(Kind::EXPR), expr(std::move(expr)) {}
   ~ExprStmt() override = default;
-
   void accept(NodeVisitor& visitor) override;
 };
 using ExprStmtPtr = std::shared_ptr<ExprStmt>;
 
 // Statement Block Expression
 struct StmtBlockExpr : Expr {
-  bool has_ret;
+  bool has_ret; // 是否含有返回语句
   std::vector<StmtPtr> stmts; // statements
 
   StmtBlockExpr(std::vector<StmtPtr> stmts)
     : stmts(std::move(stmts)) {}
   ~StmtBlockExpr() override = default;
-
   void accept(NodeVisitor& visitor) override;
 };
 using StmtBlockExprPtr = std::shared_ptr<StmtBlockExpr>;
@@ -291,7 +297,6 @@ struct FuncDecl : Decl {
   FuncDecl(FuncHeaderDeclPtr header, StmtBlockExprPtr body)
     : header(std::move(header)), body(std::move(body)) {}
   ~FuncDecl() override = default;
-
   void accept(NodeVisitor& visitor) override;
 };
 using FuncDeclPtr = std::shared_ptr<FuncDecl>;
@@ -303,11 +308,11 @@ struct BracketExpr : Expr {
   BracketExpr(std::optional<ExprPtr> expr)
     : expr(std::move(expr)) {}
   ~BracketExpr() override = default;
-
   void accept(NodeVisitor& visitor) override;
 };
 using BracketExprPtr = std::shared_ptr<BracketExpr>;
 
+// Array Elements => e.g., [1, 2, 3]
 struct ArrayElems : Expr {
   std::vector<ExprPtr> elems;
 
@@ -318,6 +323,7 @@ struct ArrayElems : Expr {
 };
 using ArrayElemsPtr = std::shared_ptr<ArrayElems>;
 
+// Tuple Elements => e.g. (1, 2)
 struct TupleElems : Expr {
   std::vector<ExprPtr> elems;
 

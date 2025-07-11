@@ -4,9 +4,9 @@
 namespace lex {
 
 /**
- * @brief  Type 转 string
- * @param  type enum class Type 中的一个
- * @return 对应的 string
+ * @brief  token type 转 string
+ * @param  type enum class TokenType 中的一个
+ * @return 对应 string
  */
 std::string
 tokenType2str(TokenType type)
@@ -54,10 +54,9 @@ tokenType2str(TokenType type)
     case TokenType::LEQ:       return "LEQ";
     case TokenType::DOTS:      return "DOTS";
     case TokenType::ARROW:     return "ARROW";
-  }
+  } // end of switch
 
   util::unreachable("lex::tokenType2str()");
 }
 
 } // namespace lex
-

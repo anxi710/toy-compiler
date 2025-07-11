@@ -56,8 +56,10 @@ public:
     scopestack.pop_back();
   }
 
-  void declareArg(const std::string &name, bool mut, type::TypePtr type) {
+  void declareArg(const std::string &name, bool mut,
+    type::TypePtr type, util::Position pos) {
     auto arg = std::make_shared<sym::Variable>();
+    arg->pos    = pos;
     arg->name   = name;
     arg->mut    = mut;
     arg->formal = true;
@@ -68,8 +70,10 @@ public:
     curfunc->argv.push_back(arg);
   }
 
-  void declareVar(const std::string &name, bool mut, bool init, type::TypePtr type) {
+  void declareVar(const std::string &name, bool mut, bool init,
+    type::TypePtr type, util::Position pos) {
     auto var = std::make_shared<sym::Variable>();
+    var->pos    = pos;
     var->name   = name;
     var->mut    = mut;
     var->formal = false;
@@ -130,4 +134,3 @@ public:
 };
 
 } // namespace sem
-

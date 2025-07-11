@@ -17,6 +17,7 @@ SemanticIRBuilder::build(ast::FuncDecl &fdecl)
 {
   //TODO: 检查返回语句是否实现了路径覆盖
   //      检查语句块表达式的类型是否和返回类型一致
+  sema.visit(fdecl);
 }
 
 void
@@ -36,6 +37,7 @@ SemanticIRBuilder::build(ast::StmtBlockExpr &sbexpr)
 {
   //TODO: 设置语句块表达式类型
   //      检查特殊语句
+  sema.visit(sbexpr);
 }
 
 void
@@ -48,6 +50,7 @@ SemanticIRBuilder::build(ast::VarDeclStmt &vdstmt)
 void
 SemanticIRBuilder::build(ast::ExprStmt &estmt)
 {
+  sema.visit(estmt);
 }
 
 void
@@ -59,12 +62,13 @@ SemanticIRBuilder::build(ast::RetExpr &rexpr)
 void
 SemanticIRBuilder::build(ast::BreakExpr &bexpr)
 {
-
+  sema.visit(bexpr);
 }
 
 void
 SemanticIRBuilder::build(ast::ContinueExpr &cexpr)
 {
+  sema.visit(cexpr);
 }
 
 void
@@ -148,31 +152,37 @@ SemanticIRBuilder::build(ast::IfExpr &iexpr)
 void
 SemanticIRBuilder::build(ast::ElseClause &eclause)
 {
+  sema.visit(eclause);
 }
 
 void
 SemanticIRBuilder::build(ast::WhileLoopExpr &wlexpr)
 {
+  sema.visit(wlexpr);
 }
 
 void
 SemanticIRBuilder::build(ast::ForLoopExpr &flexpr)
 {
+  sema.visit(flexpr);
 }
 
 void
 SemanticIRBuilder::build(ast::Interval &interval)
 {
+  sema.visit(interval);
 }
 
 void
 SemanticIRBuilder::build(ast::IterableVal &iter)
 {
+  sema.visit(iter);
 }
 
 void
 SemanticIRBuilder::build(ast::LoopExpr &lexpr)
 {
+  sema.visit(lexpr);
 }
 
 } // namespace par

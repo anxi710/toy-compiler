@@ -14,6 +14,7 @@ constexpr std::uint8_t F_LR     = 2;
 constexpr std::uint8_t B_X86_84 = 1;
 constexpr std::uint8_t B_RISC_V = 2;
 
+// 编译器类，维护编译器模块的调用逻辑
 class Compiler {
 public:
   Compiler(const std::string &file);
@@ -24,14 +25,12 @@ public:
 
 private:
   ast::ProgPtr ast_root;
-  std::vector<lex::Token> tokens;
 
-  std::unique_ptr<lex::Lexer>             lexer;
-  std::unique_ptr<par::Parser>            parser;
-  std::unique_ptr<sym::SymbolTable>       symtab;
-  std::unique_ptr<par::SemanticIRBuilder> builder;
-  std::unique_ptr<err::ErrReporter>       reporter;
+  std::unique_ptr<lex::Lexer>             lexer;    // lexer
+  std::unique_ptr<par::Parser>            parser;   // parser
+  std::unique_ptr<sym::SymbolTable>       symtab;   // symbol table
+  std::unique_ptr<par::SemanticIRBuilder> builder;  // semantic ir builder
+  std::unique_ptr<err::ErrReporter>       reporter; // error reporter
 };
 
 } // namespace cpr
-

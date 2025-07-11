@@ -22,7 +22,7 @@ public:
   auto parseProgram() -> ast::ProgPtr;
 
 private:
-  auto nextToken() -> std::optional<lex::Token>;
+  auto nextToken() -> lex::Token;
   void advance();
   bool match(lex::TokenType type);
   bool check(lex::TokenType type) const;

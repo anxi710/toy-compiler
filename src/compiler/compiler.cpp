@@ -43,9 +43,14 @@ Compiler::Compiler(const std::string &file)
   this->parser  = std::make_unique<par::Parser>(*lexer, *builder, *reporter);
 }
 
+/**
+ * @brief 生成中间代码
+ * @param file 输出文件名（不带后缀）
+ */
 void
 Compiler::generateIR(const std::string &file)
 {
+  // 准备输出文件流
   std::string base = file.empty() ? "output" : file;
   std::ofstream out;
   out.open(base + std::string{".ir"});
@@ -53,7 +58,13 @@ Compiler::generateIR(const std::string &file)
     util::runtime_error("无法打开输出文件（.ir）");
   }
 
+  // 一遍扫描、语法制导地生成中间代码
   ast_root = parser->parseProgram();
+
+  // pretty print
+  for (const auto &code : ast_root->ircode) {
+    out << code->str() << std::endl;
+  }
 }
 
 } // namespace cpr

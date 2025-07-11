@@ -22,6 +22,9 @@ struct Token {
   ) : type(type), value(std::move(value)), pos(pos) {}
   ~Token() = default;
 
+  /**
+   * @brief pretty print
+   */
   std::string str() const {
     return std::format("<type: {}, value: {}>@{}",
       tokenType2str(type), value, pos
