@@ -1,5 +1,7 @@
 # Toy Compiler
 
+[![Continuous Integration](https://github.com/anxi710/toy_compiler/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/anxi710/toy_compiler/actions/workflows/c-cpp.yml) [![C++ Version](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23.html)
+
 > This is a rust-like compiler implemented in c++.
 >
 > 同济大学 2024-2025 学年暑期 **编译原理课程设计** 大作业
