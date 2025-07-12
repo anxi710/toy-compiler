@@ -14,6 +14,14 @@ ReturnChecker::visit(ast::StmtBlockExpr &sbexpr)
 }
 
 void
+ReturnChecker::visit(ast::VarDeclStmt &vdstmt)
+{
+  if (vdstmt.value.has_value()) {
+    vdstmt.value.value()->accept(*this);
+  }
+}
+
+void
 ReturnChecker::visit(ast::ExprStmt &estmt)
 {
   estmt.expr->accept(*this);
@@ -50,7 +58,7 @@ ReturnChecker::visit(ast::BracketExpr &bexpr)
 void
 ReturnChecker::visit(ast::IfExpr &iexpr)
 {
-  if (iexpr.elses.empty() || (*iexpr.elses.rbegin())->cond.has_value()) {
+  if (iexpr.elses.empty() || iexpr.elses.back()->cond.has_value()) {
     has_ret = false;
     return;
   }

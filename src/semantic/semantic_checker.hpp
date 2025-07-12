@@ -19,6 +19,7 @@ public:
   void visit(ast::FuncHeaderDecl &fhdecl) override;
   void visit(ast::Arg &arg) override;
   void visit(ast::StmtBlockExpr &sbexpr) override;
+  void visit(ast::EmptyStmt &estmt) override;
   void visit(ast::VarDeclStmt &vdstmt) override;
   void visit(ast::ExprStmt &estmt) override;
   void visit(ast::RetExpr &rexpr) override;

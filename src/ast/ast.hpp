@@ -60,12 +60,12 @@ struct Type : Node {
 
 // Argument
 struct Arg : virtual Node {
-  std::string   name;
   bool          mut;
+  std::string   name;
   Type          type;
 
-  Arg(std::string name, bool mut, const Type &type
-  ) : name(std::move(name)), mut(mut),
+  Arg(bool mut, std::string name, const Type &type
+  ) : mut(mut), name(std::move(name)),
       type(type) {}
   ~Arg() override = default;
 
@@ -97,6 +97,7 @@ struct Stmt : virtual Node {
     EXPR,  // 表达式语句
   } kind;
   bool unreachable; // 是否可以执行到
+  bool is_last = false;
   Type type;
 
   Stmt(Kind kind) : kind(kind) {}
@@ -118,9 +119,9 @@ using ExprPtr = std::shared_ptr<Expr>;
 
 // Variable Declaration Statement
 struct VarDeclStmt : Stmt {
-  bool mut;
+  bool        mut;
   std::string name;
-  Type vartype; // variable type
+  Type        vartype; // variable type
   std::optional<ExprPtr> value;
 
   VarDeclStmt(bool mut, std::string name,
@@ -137,7 +138,8 @@ struct Expr : virtual Node {
   ir::IRValue irval; // 表达式计算结果存储位置
 
   bool res_mut; // 表达式计算结果是否可变
-  bool used_as_stmt; // 是否用作一个语句
+  bool used_as_stmt;
+  bool is_ctlflow = false;
   Type type; // value type
 
   ~Expr() override = default;

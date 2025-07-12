@@ -55,12 +55,12 @@ public:
   auto lookupFunc(const std::string &name) const -> std::optional<FunctionPtr>;
   auto lookupVar(const std::string &name) const -> std::optional<VariablePtr>;
 
-  void printSymbol(std::ofstream &out);
-
   auto getCurScopeName() const -> std::string;
   auto getFuncName() -> std::string;
 
   auto checkAutoTypeInfer() const -> std::vector<VariablePtr>;
+
+  void printSymbol(std::ofstream &out);
 
 private:
   using Scope    = std::unordered_map<std::string, VariablePtr>;

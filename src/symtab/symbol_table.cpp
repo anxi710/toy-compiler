@@ -122,37 +122,6 @@ SymbolTable::lookupVar(const std::string &name) const
 }
 
 /**
- * @brief 打印符号表
- * @param out 输出流
- */
-void
-SymbolTable::printSymbol(std::ofstream &out)
-{
-  std::println(out, "搜集到如下函数符号：");
-
-  for (const auto &func : funcs) {
-    std::println(out,
-      "函数名：{}，参数个数：{}，返回值类型：",
-      func.first, func.second->argv.size(), func.second->type->str()
-    );
-  }
-
-  std::println(out, "搜集到如下变量符号：");
-
-  for (const auto &scope : scopes) {
-    auto scope_name = scope.first;
-    auto p_scope = scope.second;
-
-    for (const auto &var : *p_scope) {
-      std::println(out,
-        "变量名：{}::{}，类型：{}",
-        scope_name, var.first, var.second->type->str()
-      );
-    }
-  }
-}
-
-/**
  * @brief  取作用域名
  * @return 作用域名，含global
  */
@@ -191,6 +160,37 @@ SymbolTable::checkAutoTypeInfer() const
   }
 
   return failed_vars;
+}
+
+/**
+ * @brief 打印符号表
+ * @param out 输出流
+ */
+void
+SymbolTable::printSymbol(std::ofstream &out)
+{
+  std::println(out, "搜集到如下函数符号：");
+
+  for (const auto &func : funcs) {
+    std::println(out,
+      "函数名：{}，参数个数：{}，返回值类型：",
+      func.first, func.second->argv.size(), func.second->type->str()
+    );
+  }
+
+  std::println(out, "搜集到如下变量符号：");
+
+  for (const auto &scope : scopes) {
+    auto scope_name = scope.first;
+    auto p_scope = scope.second;
+
+    for (const auto &var : *p_scope) {
+      std::println(out,
+        "变量名：{}::{}，类型：{}",
+        scope_name, var.first, var.second->type->str()
+      );
+    }
+  }
 }
 
 } // namespace sym

@@ -41,6 +41,12 @@ SemanticIRBuilder::build(ast::StmtBlockExpr &sbexpr)
 }
 
 void
+SemanticIRBuilder::build(ast::EmptyStmt &estmt)
+{
+  sema.visit(estmt);
+}
+
+void
 SemanticIRBuilder::build(ast::VarDeclStmt &vdstmt)
 {
   sema.visit(vdstmt);

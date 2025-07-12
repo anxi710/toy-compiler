@@ -98,7 +98,7 @@ Parser::consume(TokenType type, const std::string &msg)
 }
 
 /**
- * @brief  解析 ast::Prog
+ * @brief  解析输入程序
  * @return 解析到的 ast::Prog 结点指针
  */
 ast::ProgPtr
@@ -118,6 +118,45 @@ Parser::parseProgram()
   return prog;
 }
 
+/**
+ * @brief  解析标识符
+ * @return 解析到的标识符名和声明位置
+ */
+std::pair<std::string, util::Position>
+Parser::parseID()
+{
+  std::string    name = cur.value;
+  util::Position pos  = cur.pos;
+  consume(TokenType::ID, "Expect '<ID>'");
+  return {name, pos};
+}
+
+/**
+ * @brief  解析变量声明内部
+ * @return 解析到的 mutable & variable name
+ */
+std::tuple<bool, std::string, util::Position>
+Parser::parseInnerVarDecl()
+{
+  // InnerVarDecl -> (mut)? <ID>
+
+  // (mut)?
+  bool mut = false;
+  if (check(TokenType::MUT)) {
+    mut = true;
+    advance();
+  }
+
+  // <ID>
+  auto [name, pos] = parseID();
+
+  return {mut, name, pos};
+}
+
+/**
+ * @brief  解析函数声明
+ * @return 解析到的 ast::FuncDecl 结点指针
+ */
 ast::FuncDeclPtr
 Parser::parseFuncDecl()
 {
@@ -135,6 +174,10 @@ Parser::parseFuncDecl()
   return func;
 }
 
+/**
+ * @brief  解析函数头声明
+ * @return 解析到的 ast::FuncHeaderDecl 结点指针
+ */
 ast::FuncHeaderDeclPtr
 Parser::parseFuncHeaderDecl()
 {
@@ -142,9 +185,7 @@ Parser::parseFuncHeaderDecl()
 
   consume(TokenType::FN, "Expect 'fn'");
 
-  std::string    name = cur.value;
-  util::Position pos  = cur.pos;
-  consume(TokenType::ID, "Expect '<ID>'");
+  auto [name, pos] = parseID();
 
   builder.ctx->enterFunc(name, pos); // 必须先进入作用域！！！
 
@@ -154,13 +195,17 @@ Parser::parseFuncHeaderDecl()
   std::vector<ast::ArgPtr> argv{};
   while (!check(TokenType::RPAREN)) {
     argv.push_back(parseArg());
-    if (!check(TokenType::COMMA)) {
+    if (check(TokenType::RPAREN)) {
       break;
     }
-    advance();
-  }
+    consume(TokenType::COMMA, "Expect ','");
+    if (check(TokenType::RPAREN)) {
+      //TODO: unexpected token => 前面的 , 是 unexpected 的！
 
-  consume(TokenType::RPAREN, "Expect ')'");
+      break;
+    }
+  }
+  advance();
 
   // (-> VarType)?
   ast::Type type{type::TypeFactory::UNIT_TYPE};
@@ -175,29 +220,30 @@ Parser::parseFuncHeaderDecl()
   return fhdecl;
 }
 
+/**
+ * @brief  解析参数
+ * @return 解析到的 ast::Arg 结点指针
+ */
 ast::ArgPtr
 Parser::parseArg()
 {
   // arg -> (mut)? <ID> : Type
-  bool mut = false;
-  if (check(TokenType::MUT)) {
-    mut = true;
-    advance();
-  }
+  auto [mut, name, pos] = parseInnerVarDecl();
 
-  std::string    name = cur.value;
-  util::Position pos  = cur.pos;
-  consume(TokenType::ID, "Expect '<ID>'");
   consume(TokenType::COLON, "Expect ':'");
 
   auto type = parseType();
 
-  auto arg = std::make_shared<ast::Arg>(name, mut, type);
+  auto arg = std::make_shared<ast::Arg>(mut, name, type);
   arg->pos = pos;
   builder.build(*arg);
   return arg;
 }
 
+/**
+ * @brief  解析类型
+ * @return 解析到的 ast::Type 结点
+ */
 ast::Type
 Parser::parseType()
 {
@@ -206,7 +252,9 @@ Parser::parseType()
   //       | ( Type (, Type)* )
 
   ast::Type type;
-  type.pos = cur.pos;
+  type.pos = cur.pos; // 避免在类型系统中引入 util::Position
+
+  // i32
   if (check(TokenType::I32)) {
     advance();
     type.type = type::TypeFactory::INT_TYPE;
@@ -245,7 +293,7 @@ Parser::parseType()
       advance();
       is_tuple = true;
       if (etypes.size() > 1 && check(TokenType::RPAREN)) {
-        //TODO: unexpected token
+        //TODO: unexpected token ','
         std::cerr << "parseType(): unexpected token" << std::endl;
       }
     }
@@ -254,7 +302,6 @@ Parser::parseType()
 
     if (0 == etypes.size()) {
       // ()
-      //TODO: 不支持直接声明一个 unit 类型的变量
       type.type = type::TypeFactory::UNIT_TYPE;
       return type;
     }
@@ -272,6 +319,10 @@ Parser::parseType()
   util::unreachable("par::Parse::parseType()");
 }
 
+/**
+ * @brief  解析语句块表达式
+ * @return 解析到的 ast::StmtBlockExpr 结点指针
+ */
 ast::StmtBlockExprPtr
 Parser::parseStmtBlockExpr()
 {
@@ -280,7 +331,8 @@ Parser::parseStmtBlockExpr()
   util::Position pos = cur.pos;
   consume(TokenType::LBRACE, "Expect '{'");
 
-  std::vector<ast::StmtPtr> stmts{};
+  // (stmt)*
+  std::vector<ast::StmtPtr> stmts;
   while (!check(TokenType::RBRACE)) {
     stmts.push_back(parseStmt());
   }
@@ -293,6 +345,10 @@ Parser::parseStmtBlockExpr()
   return sbexpr;
 }
 
+/**
+ * @brief  解析语句
+ * @return 解析到的 ast::Stmt 结点指针
+ */
 ast::StmtPtr
 Parser::parseStmt()
 {
@@ -300,20 +356,23 @@ Parser::parseStmt()
   //       | VarDeclStmt
   //       | ExprStmt
 
-  ast::StmtPtr stmt;
+  util::Position pos = cur.pos;
   if (check(TokenType::SEMICOLON)) {
     // EmptyStmt -> ;
     advance();
-    stmt = std::make_shared<ast::EmptyStmt>();
-  } else if (check(TokenType::LET)) {
-    // VarDeclStmt -> let (mut)? <ID> (: Type)? (= Expr)? ;
-    stmt = parseVarDeclStmt();
-  } else {
-    // other case
-    stmt = parseExprStmt();
+    auto estmt = std::make_shared<ast::EmptyStmt>();
+    estmt->pos = pos;
+    builder.build(*estmt);
+    return estmt;
   }
 
-  return stmt;
+  if (check(TokenType::LET)) {
+    // VarDeclStmt -> let ...
+    return parseVarDeclStmt();
+  } else {
+    // other case
+    return parseExprStmt();
+  }
 }
 
 ast::VarDeclStmtPtr
@@ -323,16 +382,8 @@ Parser::parseVarDeclStmt()
 
   consume(TokenType::LET, "Expect 'let'");
 
-  // (mut)?
-  bool mut = false;
-  if (check(TokenType::MUT)) {
-    mut = true;
-    advance();
-  }
-
-  util::Position pos  = cur.pos;
-  std::string    name = cur.value;
-  consume(TokenType::ID, "Expect '<ID>'");
+  // (mut)? <ID>
+  auto [mut, name, pos] = parseInnerVarDecl();
 
   // (: Type)?
   ast::Type type{type::TypeFactory::UNKNOWN_TYPE};
@@ -374,10 +425,19 @@ Parser::parseExprStmt()
   if (check(TokenType::SEMICOLON)) {
     expr->used_as_stmt = false;
     advance();
-  } else if (check(TokenType::RBRACE)) {
-    expr->used_as_stmt = false;
   } else {
-    expr->used_as_stmt = true;
+    if (check(TokenType::RBRACE)) {
+      estmt->is_last = true;
+      expr->used_as_stmt = false;
+    } else {
+      if (expr->is_ctlflow) {
+        expr->used_as_stmt = true;
+      } else {
+        //TODO: expect ';'!!!
+        std::cerr << "parseExprStmt(): Expect ';'" << std::endl;
+        expr->used_as_stmt = false;
+      }
+    }
   }
 
   estmt->pos = pos;
@@ -866,9 +926,7 @@ Parser::parseCallExpr()
 {
   // CallExpr -> <ID> ( ArgList )
 
-  util::Position pos  = cur.pos;
-  std::string    name = cur.value; // function name
-  consume(TokenType::ID, "Expect function name");
+  auto [name, pos] = parseID();
 
   consume(TokenType::LPAREN, "Expect '('");
 
@@ -916,6 +974,7 @@ Parser::parseIfExpr()
   }
 
   auto iexpr = std::make_shared<ast::IfExpr>(cond, body, elses);
+  iexpr->is_ctlflow = true;
   iexpr->pos = pos;
   builder.build(*iexpr);
   return iexpr;
@@ -962,6 +1021,7 @@ Parser::parseWhileLoopExpr()
   builder.ctx->exitScope();
 
   auto wlexpr = std::make_shared<ast::WhileLoopExpr>(expr, block);
+  wlexpr->is_ctlflow = true;
   wlexpr->pos = pos;
   builder.build(*wlexpr);
   return wlexpr;
@@ -975,14 +1035,7 @@ Parser::parseForLoopExpr()
   util::Position pos = cur.pos;
   consume(TokenType::FOR, "Expect 'for'");
 
-  bool mut = false;
-  if (check(TokenType::MUT)) {
-    advance();
-    mut = true;
-  }
-  std::string name = cur.value;
-  util::Position varpos = cur.pos;
-  consume(TokenType::ID, "Expect '<ID>'");
+  auto [mut, name, varpos] = parseInnerVarDecl();
 
   // 这里简单的将迭代器的类型认为是 i32
   // 实际类型应该由可迭代对象的元素的类型确定
@@ -996,6 +1049,7 @@ Parser::parseForLoopExpr()
   auto block = parseStmtBlockExpr();
 
   auto flexpr = std::make_shared<ast::ForLoopExpr>(mut, name, iter, block);
+  flexpr->is_ctlflow = true;
   flexpr->pos = pos;
   builder.build(*flexpr);
   return flexpr;
@@ -1040,6 +1094,7 @@ Parser::parseLoopExpr()
   builder.ctx->exitScope();
 
   auto lexpr = std::make_shared<ast::LoopExpr>(block);
+  lexpr->is_ctlflow = true;
   lexpr->pos = pos;
   builder.build(*lexpr);
   return lexpr;

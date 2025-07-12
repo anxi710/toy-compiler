@@ -4,6 +4,7 @@
 
 #include "ast.hpp"
 #include "lexer.hpp"
+#include "position.hpp"
 #include "err_report.hpp"
 #include "semantic_ir_builder.hpp"
 
@@ -29,7 +30,8 @@ private:
   bool checkAhead(lex::TokenType type);
   void consume(lex::TokenType type, const std::string &msg);
 
-  auto parseInnerVarDecl() -> std::tuple<bool, std::string>;
+  auto parseID() -> std::pair<std::string, util::Position>;
+  auto parseInnerVarDecl() -> std::tuple<bool, std::string, util::Position>;
   auto parseFuncDecl() -> ast::FuncDeclPtr;
   auto parseFuncHeaderDecl() -> ast::FuncHeaderDeclPtr;
   auto parseArg() -> ast::ArgPtr;

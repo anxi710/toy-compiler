@@ -2,12 +2,13 @@
 
 #include "ast.hpp"
 #include "visitor.hpp"
+#include "type_factory.hpp"
 
 namespace sem {
 
-class ReturnChecker : public ast::BaseVisitor {
+class BreakChecker : public ast::BaseVisitor {
 public:
-  ~ReturnChecker() override = default;
+  ~BreakChecker() override = default;
 
 public:
   void visit(ast::StmtBlockExpr &sbexpr) override;
@@ -19,12 +20,10 @@ public:
   void visit(ast::BracketExpr &bexpr) override;
   void visit(ast::IfExpr &iexpr) override;
   void visit(ast::ElseClause &eclause) override;
-  void visit(ast::WhileLoopExpr&wlexpr) override;
-  void visit(ast::ForLoopExpr &flexpr) override;
-  void visit(ast::LoopExpr&lexpr) override;
 
 public:
-  bool has_ret = false;
+  bool has_break = false;
+  type::TypePtr type = type::TypeFactory::UNKNOWN_TYPE;
 };
 
 } // namespace sem

@@ -107,6 +107,14 @@ public:
     return false;
   }
 
+  auto checkAutoTypeInfer() {
+    return symtab.checkAutoTypeInfer();
+  }
+
+  auto getCurScopeName() {
+    return symtab.getCurScopeName();
+  }
+
 public:
   sym::SymbolTable  &symtab;
   type::TypeFactory  types;

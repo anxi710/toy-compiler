@@ -22,6 +22,7 @@ public:
   void build(ast::FuncHeaderDecl &fhdecl);
   void build(ast::Arg &arg);
   void build(ast::StmtBlockExpr &sbexpr);
+  void build(ast::EmptyStmt &estmt);
   void build(ast::VarDeclStmt &vdstmt);
   void build(ast::ExprStmt &estmt);
   void build(ast::RetExpr &rexpr);
