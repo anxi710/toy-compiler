@@ -1,6 +1,6 @@
-#include <print>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 
 #include "panic.hpp"
 #include "preproc.hpp"
@@ -52,14 +52,22 @@ Compiler::generateIR(const std::string &file)
 {
   // 准备输出文件流
   std::string base = file.empty() ? "output" : file;
+  std::string filename = std::format("{}.ir", base);
   std::ofstream out;
-  out.open(base + std::string{".ir"});
+  out.open(filename);
   if (!out) {
     util::runtime_error("无法打开输出文件（.ir）");
   }
 
   // 一遍扫描、语法制导地生成中间代码
   ast_root = parser->parseProgram();
+
+  // 如果扫描过程中发现了错误，则打印错误并退出
+  if (reporter->hasErrs()) {
+    reporter->displayErrs();
+    std::filesystem::remove(filename);
+    return;
+  }
 
   // pretty print
   for (const auto &code : ast_root->ircode) {

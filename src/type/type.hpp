@@ -9,6 +9,7 @@
 
 namespace type {
 
+// 类型种类
 enum class TypeKind : std::uint8_t {
   I32,
   BOOL,
@@ -19,6 +20,7 @@ enum class TypeKind : std::uint8_t {
   ANY // 通用类型，用于匹配任意类型
 };
 
+// 引用种类
 enum class RefKind : std::uint8_t {
   NORMAL,    // 普通变量
   MUTABLE,   // 可变引用
@@ -135,7 +137,7 @@ struct ArrayType : Type {
   ~ArrayType() override = default;
 
   [[nodiscard]] std::string str() const override {
-    return std::format("[{}, {}]", etype->str(), size_);
+    return std::format("[{}; {}]", etype->str(), size_);
   }
   TypePtr getElemType(int idx = 0) override {
     return etype;

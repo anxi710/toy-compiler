@@ -8,11 +8,11 @@
 
 namespace cpr {
 
-constexpr std::uint8_t F_LL     = 1;
-constexpr std::uint8_t F_LR     = 2;
+constexpr std::uint8_t F_LL     = 1; // 使用 LL 分析法构建的语法分析器
+constexpr std::uint8_t F_LR     = 2; // 使用 LR 分析法构建的语法分析器
 
-constexpr std::uint8_t B_X86_84 = 1;
-constexpr std::uint8_t B_RISC_V = 2;
+constexpr std::uint8_t B_X86_84 = 1; // 生成 x86_64 汇编代码
+constexpr std::uint8_t B_RISC_V = 2; // 生成 risc-v 汇编代码
 
 // 编译器类，维护编译器模块的调用逻辑
 class Compiler {

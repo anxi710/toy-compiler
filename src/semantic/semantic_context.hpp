@@ -111,8 +111,9 @@ public:
     return symtab.checkAutoTypeInfer();
   }
 
-  auto getCurScopeName() {
-    return symtab.getCurScopeName();
+  auto getCurScopeName() const {
+    std::string str = "global::";
+    return symtab.getCurScopeName().substr(str.length());
   }
 
 public:

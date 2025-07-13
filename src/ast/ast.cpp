@@ -50,6 +50,12 @@ VarDeclStmt::accept(NodeVisitor &visitor)
 }
 
 void
+EmptyExpr::accept(NodeVisitor &visitor)
+{
+  visitor.visit(*this);
+}
+
+void
 BreakExpr::accept(NodeVisitor &visitor)
 {
   visitor.visit(*this);

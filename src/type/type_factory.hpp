@@ -7,6 +7,7 @@
 
 namespace type {
 
+// 唯一性区分不同类型
 struct TypeKey {
   TypeKind kind; // 只使用 ARRAY 和 TUPLE
   int size;
@@ -20,6 +21,7 @@ struct TypeKey {
         etypes.size() != other.etypes.size()) {
       return false;
     }
+    // 依次检查各元素的类型
     for (std::size_t i = 0; i < etypes.size(); ++i) {
       if (etypes[i] != other.etypes[i]) {
         return false;
@@ -32,17 +34,20 @@ struct TypeKey {
 } // namespace type
 
 namespace std {
-  template<>
-  struct hash<type::TypeKey> {
-    std::size_t operator() (const type::TypeKey &k) const {
-      std::size_t h = std::hash<int>()(static_cast<int>(k.kind));
-      for (const auto &p : k.etypes) {
-          h ^= (std::hash<type::Type*>()(p.get())
-              + 0x9e3779b9 + (h << 6) + (h >> 2));
-      }
-      return h;
+
+// 计算 TypeKey 的 hash 值
+template<>
+struct hash<type::TypeKey> {
+  std::size_t operator() (const type::TypeKey &k) const {
+    std::size_t h = std::hash<int>()(static_cast<int>(k.kind));
+    for (const auto &p : k.etypes) {
+      h ^= (std::hash<type::Type*>()(p.get())
+        + 0x9e3779b9 + (h << 6) + (h >> 2));
     }
-  };
+    return h;
+  }
+};
+
 } // namespace std
 
 namespace type {
@@ -52,6 +57,8 @@ public:
   TypeFactory() = default;
 
 public:
+  // 唯一存在的类型的实例
+  // 所有使用到的位置都指向这些实例，保证类型系统唯一性
   static const TypePtr ANY_TYPE;
   static const TypePtr INT_TYPE;
   static const TypePtr BOOL_TYPE;
@@ -64,9 +71,10 @@ public:
   }
 
   TypePtr getArray(int size, TypePtr etype) {
+    // Array 的所有元素类型一致，因此只存储一份！
     TypeKey key{TypeKind::ARRAY, size, {etype}};
-    auto iter = cache.find(key);
-    if (iter != cache.end()) {
+
+    if (auto iter = cache.find(key); iter != cache.end()) {
       return iter->second;
     }
 
@@ -81,8 +89,8 @@ public:
 
   TypePtr getTuple(std::vector<TypePtr> etypes) {
     TypeKey key{TypeKind::TUPLE, static_cast<int>(etypes.size()), etypes};
-    auto iter = cache.find(key);
-    if (iter != cache.end()) {
+
+    if (auto iter = cache.find(key); iter != cache.end()) {
       return iter->second;
     }
 

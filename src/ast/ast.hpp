@@ -56,6 +56,9 @@ struct Type : Node {
   bool operator==(const Type& other) const {
     return type::typeEquals(this->type, other.type);
   }
+  [[nodiscard]] std::string str() const {
+    return type->str();
+  }
 };
 
 // Argument
@@ -145,6 +148,12 @@ struct Expr : virtual Node {
   ~Expr() override = default;
   void accept(NodeVisitor& visitor) override = 0;
 };
+
+struct EmptyExpr : Expr {
+  ~EmptyExpr() override = default;
+  void accept(NodeVisitor& visitor) override;
+};
+using EmptyExprPtr = std::shared_ptr<EmptyExpr>;
 
 // Return Expression
 struct RetExpr : Expr {

@@ -6,6 +6,7 @@ Checks: >
   -performance-avoid-endl,
   -readability-identifier-length,
   -readability-redundant-access-specifiers,
+  -readability-use-anyofallof,
   -modernize-use-trailing-return-type
 
 CheckOptions:

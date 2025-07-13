@@ -16,35 +16,22 @@ public:
 public:
   void report(LexErrType type, const std::string &msg,
     util::Position pos, const std::string &token);
-
   void report(ParErrType type, const std::string &msg,
     util::Position pos, const std::string &token);
   void report(SemErrType type, const std::string &msg,
     util::Position pos, const std::string &scope_name);
 
 public:
-  void displayLexErrs() const;
-  void displayParseErrs() const;
-  void displayInternalErrs() const;
-  void displaySemanticErrs() const;
-
-  bool hasLexErr() const;
-  bool hasParErr() const;
-  bool hasSemErr() const;
-
-private:
-  bool hasErrs() const;
-
-  void displayLexErr(const LexErr &err) const;
+  void displayErrs() const;
   void displayUnknownType(const LexErr &err) const;
+  void displayUnexpectedToken(const ParErr &err) const;
+  void displaySemErr(const SemErr &err) const;
 
-  void displaySemanticErr(const SemErr &err) const;
+  [[nodiscard]] bool hasErrs() const;
 
 private:
-  std::vector<std::string> text;     // 输入文件原始文本
-  std::vector<LexErr>      lex_errs; // 词法错误列表
-  std::vector<ParErr>      par_errs; // 语法错误列表
-  std::vector<SemErr>      sem_errs; // 语义错误列表
+  std::vector<std::string> text; // 输入文件原始文本
+  std::vector<ErrPtr>      errs; // 错误列表
 };
 
 } // namespace error

@@ -48,9 +48,15 @@ bear:
 	bear -- make -j
 
 clean:
-	-rm -rf $(BUILD_DIR) *.token *.dot *.symbol *.ir
+	-rm -rf $(BUILD_DIR) *.ir *.code
 
 clean-all:
-	-rm -rf $(BUILD_DIR) compile_commands.json *.token *.dot *.symbol *.ir
+	-rm -rf $(BUILD_DIR) compile_commands.json *.ir *.code
+
+qemu:
+
+qemu-gdb:
+
+elf:
 
 -include $(DEPS)

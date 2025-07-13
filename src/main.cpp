@@ -51,31 +51,31 @@ printHelp(const char *const exec)
  * @brief  参数解析
  * @param  argc argument counter
  * @param  argv argument vector
- * @return tuple: flag_default, flag_parse, flag_token, in_file, out_file
+ * @return tuple: flag_ir, in_file, out_file
  */
 auto
 argumentParsing(int argc, char *argv[])
 {
   // 定义长选项
-  static const struct option long_options[] = {
-      {.name = "help",     .has_arg = no_argument,       .flag = nullptr, .val = 'h'},
-      {.name = "version",  .has_arg = no_argument,       .flag = nullptr, .val = 'v'},
-      {.name = "input",    .has_arg = required_argument, .flag = nullptr, .val = 'i'},
-      {.name = "output",   .has_arg = required_argument, .flag = nullptr, .val = 'o'},
-      {.name = "ir", .has_arg = no_argument,       .flag = nullptr, .val = 'r'},
-      {.name = nullptr,    .has_arg = 0,                 .flag = nullptr, .val = 0} // 结束标志
+  static const struct option options[] = {
+      {.name = "help",    .has_arg = no_argument,       .flag = nullptr, .val = 'h'},
+      {.name = "version", .has_arg = no_argument,       .flag = nullptr, .val = 'v'},
+      {.name = "input",   .has_arg = required_argument, .flag = nullptr, .val = 'i'},
+      {.name = "output",  .has_arg = required_argument, .flag = nullptr, .val = 'o'},
+      {.name = "ir",      .has_arg = no_argument,       .flag = nullptr, .val = 'r'},
+      {.name = nullptr,   .has_arg = 0,                 .flag = nullptr, .val = 0} // 结束标志
   };
 
-  int opt{}; // option
-  int option_index{0};
+  int opt; // option
+  int optidx = 0;
 
-  bool flag_ir{false};
+  bool flag_ir = false;
 
   std::string in_file{};  // 输入文件名
   std::string out_file{}; // 输出文件名
 
   // 参数解析
-  while ((opt = getopt_long(argc, argv, "hvVi:o:r", long_options, &option_index)) != -1) {
+  while ((opt = getopt_long(argc, argv, "hvVi:o:r", options, &optidx)) != -1) {
     switch (opt) {
       case 'h': // help
         printHelp(argv[0]);
@@ -109,8 +109,8 @@ argumentParsing(int argc, char *argv[])
 }
 
 /**
- * @brief   toy compiler 主函数
- * @details 拼装各组件
+ * @brief   主函数
+ * @details 初始化 compiler 并调用其提供的函数完成任务
  */
 int
 main(int argc, char *argv[])

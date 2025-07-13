@@ -14,7 +14,6 @@ public:
   ~SemanticChecker() override = default;
 
 public:
-  void visit(ast::Prog &prog) override;
   void visit(ast::FuncDecl &fdecl) override;
   void visit(ast::FuncHeaderDecl &fhdecl) override;
   void visit(ast::Arg &arg) override;

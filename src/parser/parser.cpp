@@ -15,12 +15,13 @@ namespace par {
 Token
 Parser::nextToken()
 {
-  // 检查了是否有值，所以可以直接返回一个 Token，而不是 std::optional<Token>
+  // 检查了是否有值，所以可以直接返回一个 Token，
+  // 而不是 std::optional<Token>
   if (auto token = lexer.nextToken(); token.has_value()) {
     return token.value();
   }
   // 如果识别到未知 token，则发生了词法分析错误，且需要立即终止
-  util::terminate();
+  util::terminate(reporter);
 }
 
 /**
@@ -92,7 +93,9 @@ Parser::consume(TokenType type, const std::string &msg)
   if (!match(type)) { // 并不会杀死进程
     reporter.report(
       err::ParErrType::UNEXPECT_TOKEN,
-      msg, cur.pos, cur.value
+      msg,
+      cur.pos,
+      cur.value
     );
   }
 }
@@ -148,7 +151,7 @@ Parser::parseInnerVarDecl()
   }
 
   // <ID>
-  auto [name, pos] = parseID();
+  auto [name, pos] = parseID(); // 参数解包
 
   return {mut, name, pos};
 }
@@ -166,11 +169,12 @@ Parser::parseFuncDecl()
   auto header = parseFuncHeaderDecl();
   auto body   = parseStmtBlockExpr();
 
-  builder.ctx->exitScope();
-
   auto func = std::make_shared<ast::FuncDecl>(header, body);
   func->pos = pos;
   builder.build(*func);
+
+  builder.ctx->exitScope();
+
   return func;
 }
 
@@ -198,10 +202,15 @@ Parser::parseFuncHeaderDecl()
     if (check(TokenType::RPAREN)) {
       break;
     }
+    util::Position commapos = cur.pos;
     consume(TokenType::COMMA, "Expect ','");
     if (check(TokenType::RPAREN)) {
-      //TODO: unexpected token => 前面的 , 是 unexpected 的！
-
+      reporter.report(
+        err::ParErrType::UNEXPECT_TOKEN,
+        "考虑删除这个 ','",
+        commapos,
+        ","
+      );
       break;
     }
   }
@@ -287,14 +296,19 @@ Parser::parseType()
     std::vector<type::TypePtr> etypes;
     while (!check(TokenType::RPAREN)) {
       etypes.push_back(parseType().type);
+      util::Position commapos = cur.pos;
       if (!check(TokenType::COMMA)) {
         break;
       }
       advance();
       is_tuple = true;
       if (etypes.size() > 1 && check(TokenType::RPAREN)) {
-        //TODO: unexpected token ','
-        std::cerr << "parseType(): unexpected token" << std::endl;
+        reporter.report(
+          err::ParErrType::UNEXPECT_TOKEN,
+          "考虑删除这个 ','",
+          commapos,
+          ","
+        );
       }
     }
 
@@ -375,6 +389,10 @@ Parser::parseStmt()
   }
 }
 
+/**
+ * @brief  解析变量声明语句
+ * @return 解析到的 ast::VarDeclStmt 结点指针
+ */
 ast::VarDeclStmtPtr
 Parser::parseVarDeclStmt()
 {
@@ -407,6 +425,10 @@ Parser::parseVarDeclStmt()
   return vdstmt;
 }
 
+/**
+ * @brief  解析表达式语句
+ * @return 解析到的 ast::ExprStmt 结点指针
+ */
 ast::ExprStmtPtr
 Parser::parseExprStmt()
 {
@@ -445,6 +467,10 @@ Parser::parseExprStmt()
   return estmt;
 }
 
+/**
+ * @brief  解析表达式
+ * @return 解析到的 ast::Expr 结点指针
+ */
 ast::ExprPtr
 Parser::parseExpr()
 {
@@ -487,40 +513,50 @@ Parser::parseExpr()
   } else if (check(TokenType::ID)) {
     if (checkAhead(TokenType::LPAREN)) {
       expr = parseCallExpr();
-    }
-    /*
-     * x, x[idx], x.idx
-     * 都即可以作为赋值语句的左值，又可以作为表达式的一个操作数
-     */
-    util::Position pos = cur.pos;
-    auto val = parseValue();
-    ast::AssignElemPtr aelem;
-    if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
-      aelem = parseAssignElem(val);
     } else {
-      aelem = std::make_shared<ast::AssignElem>(val);
-      aelem->pos = pos;
-      builder.build(*aelem);
-    }
+      /*
+       * x, x[idx], x.idx
+       * 都即可以作为赋值语句的左值，又可以作为表达式的一个操作数
+       */
+      util::Position pos = cur.pos;
+      auto val = parseValue();
+      ast::AssignElemPtr aelem;
 
-    if (check(TokenType::ASSIGN)) {
-      expr = parseAssignExpr(std::move(aelem));
-    } else {
-      expr = parseCmpExpr(aelem);
-    }
-  } else if (check(TokenType::INT) || check(TokenType::LPAREN) || check(TokenType::LBRACK)) {
+      if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
+        aelem = parseAssignElem(val);
+      } else {
+        aelem = std::make_shared<ast::AssignElem>(val);
+        aelem->pos = pos;
+        builder.build(*aelem);
+      }
+
+      if (check(TokenType::ASSIGN)) {
+        expr = parseAssignExpr(std::move(aelem));
+      } else {
+        expr = parseCmpExpr(aelem);
+      }
+    } // end if
+  } else if (check(TokenType::INT)
+    || check(TokenType::LPAREN)
+    || check(TokenType::LBRACK)
+  ) {
     expr = parseCmpExpr();
   } else {
     //TODO: unexpected token!
-  }
+  } // end if
 
   return expr;
 }
 
+/**
+ * @brief  解析 return 表达式
+ * @return 解析到的 ast::RetExpr 结点指针
+ */
 ast::RetExprPtr
 Parser::parseRetExpr()
 {
   // RetExpr -> return (Expr)?
+
   util::Position pos = cur.pos;
   consume(TokenType::RETURN, "Expect 'return'");
 
@@ -535,10 +571,15 @@ Parser::parseRetExpr()
   return rexpr;
 }
 
+/**
+ * @brief  解析 break 表达式
+ * @return 解析到的 ast::BreakExpr 结点指针
+ */
 ast::BreakExprPtr
 Parser::parseBreakExpr()
 {
   // BreakExpr -> break (Expr)?
+
   util::Position pos = cur.pos;
   consume(TokenType::BREAK, "Expect 'break'");
 
@@ -553,10 +594,15 @@ Parser::parseBreakExpr()
   return bexpr;
 }
 
+/**
+ * @brief  解析 continue 表达式
+ * @return 解析到的 ast::ContinueExpr 结点指针
+ */
 ast::ContinueExprPtr
 Parser::parseContinueExpr()
 {
   // ContinueExpr -> continue
+
   util::Position pos = cur.pos;
   consume(TokenType::CONTINUE, "Expect 'continue'");
 
@@ -566,10 +612,15 @@ Parser::parseContinueExpr()
   return cexpr;
 }
 
+/**
+ * @brief  解析赋值表达式
+ * @return 解析到的 ast::AssignExpr 结点指针
+ */
 ast::AssignExprPtr
 Parser::parseAssignExpr(ast::AssignElemPtr &&lvalue)
 {
   // AssignElem = Expr
+
   util::Position pos = cur.pos;
   consume(TokenType::ASSIGN, "Expect '='");
 
@@ -581,12 +632,17 @@ Parser::parseAssignExpr(ast::AssignElemPtr &&lvalue)
   return aexpr;
 }
 
+/**
+ * @brief  解析赋值元素
+ * @return 解析到的 ast::AssignElem 结点指针
+ */
 ast::AssignElemPtr
 Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
 {
   // AssignElem -> Variable
   //             | ArrayAccess
   //             | TupleAccess
+
   util::Position pos = cur.pos;
 
   if (check(TokenType::ID) && checkAhead(TokenType::ASSIGN)) {
@@ -620,6 +676,7 @@ Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
   // 通过检查下一个 token 是 [ 还是 . 调用相应的 parse 函数
   // 可赋值元素必须要先识别一个 ArrayAccess 或 TupleAccess
   ast::AssignElemPtr aelem;
+
   if (check(TokenType::LBRACK)) {
     aelem = parseArrayAccess(value);
   } else if (check(TokenType::DOT)) {
@@ -641,9 +698,15 @@ Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
   return aelem;
 }
 
+/**
+ * @brief  解析数组访问
+ * @return 解析到的 ast::ArrayAccess 结点指针
+ */
 ast::ArrayAccessPtr
 Parser::parseArrayAccess(ast::ExprPtr val)
 {
+  // ArrayAccess -> Value [ Expr ]
+
   util::Position pos = cur.pos;
   consume(TokenType::LBRACK, "Expect '['");
   auto idx = parseExpr();
@@ -655,15 +718,21 @@ Parser::parseArrayAccess(ast::ExprPtr val)
   return aacc;
 }
 
+/**
+ * @brief  解析元组访问
+ * @return 解析到的 ast::TupleAccess 结点指针
+ */
 ast::TupleAccessPtr
 Parser::parseTupleAccess(ast::ExprPtr val)
 {
+  // TupleAccess -> Value . <NUM>
+
   util::Position pos = cur.pos;
   consume(TokenType::DOT, "Expect '.'");
 
   int idx = 0;
   if (check(TokenType::INT)) {
-    idx = std::stoi(cur.value);
+    idx = std::stoi(cur.value); // 避免转换错误！
   }
   consume(TokenType::INT, "Expect <NUM>");
 
@@ -673,6 +742,10 @@ Parser::parseTupleAccess(ast::ExprPtr val)
   return tacc;
 }
 
+/**
+ * @brief  解析 Value
+ * @return 解析到的 ast::Expr 结点指针
+ */
 ast::ExprPtr
 Parser::parseValue()
 {
@@ -707,9 +780,15 @@ Parser::parseValue()
   return var;
 }
 
+/**
+ * @brief  token type 转 compare operator
+ * @param  type 待转换的 token type
+ * @return 转换得到的 compare operator
+ */
 static ast::CmpOper
 tokenType2CmpOper(TokenType type)
 {
+  // 使用 switch 加速分发过程
   switch (type) {
     case TokenType::EQ:  return ast::CmpOper::EQ;
     case TokenType::NEQ: return ast::CmpOper::NEQ;
@@ -723,9 +802,15 @@ tokenType2CmpOper(TokenType type)
   util::unreachable("par::tokenType2CmpOper()");
 }
 
+/**
+ * @brief  token type 转 arithmetic operator
+ * @param  type 待转换的 token type
+ * @return 转换得到的 arithmetic operator
+ */
 static ast::AriOper
 tokenType2AriOper(TokenType type)
 {
+  // 使用 switch 加速分发过程
   switch (type) {
     case TokenType::PLUS:  return ast::AriOper::ADD;
     case TokenType::MINUS: return ast::AriOper::SUB;
@@ -737,15 +822,19 @@ tokenType2AriOper(TokenType type)
   util::unreachable("par::tokenType2AriOper");
 }
 
+/**
+ * @brief  解析 compare 表达式
+ * @return 解析到的 ast::Expr 结点指针
+ */
 ast::ExprPtr
 Parser::parseCmpExpr(std::optional<ast::AssignElemPtr> elem)
 {
   // CmpExpr -> (CmpExpr CmpOper)* AddExpr
+
   ast::ExprPtr lhs = parseAddExpr(std::move(elem));
-  while (
-    check(TokenType::LT) || check(TokenType::LEQ) ||
-    check(TokenType::GT) || check(TokenType::GEQ) ||
-    check(TokenType::EQ) || check(TokenType::NEQ)
+  while (check(TokenType::LT) || check(TokenType::LEQ)
+      || check(TokenType::GT) || check(TokenType::GEQ)
+      || check(TokenType::EQ) || check(TokenType::NEQ)
   ) {
     util::Position pos = cur.pos;
 
@@ -755,7 +844,7 @@ Parser::parseCmpExpr(std::optional<ast::AssignElemPtr> elem)
     ast::ExprPtr rhs = parseAddExpr();
 
     auto cexpr = std::make_shared<ast::CmpExpr>(
-      lhs, tokenType2CmpOper(op), rhs
+      lhs, tokenType2CmpOper(op), rhs // 注意结点挂载位置！！！
     );
     cexpr->pos = pos;
     builder.build(*cexpr);
@@ -765,10 +854,15 @@ Parser::parseCmpExpr(std::optional<ast::AssignElemPtr> elem)
   return lhs;
 }
 
+/**
+ * @brief  解析 add & sub expression
+ * @return 解析到的 ast::Expr 结点指针
+ */
 ast::ExprPtr
 Parser::parseAddExpr(std::optional<ast::AssignElemPtr> elem)
 {
   // AddExpr -> (AddExpr [+ | -])* MulExpr
+
   ast::ExprPtr lhs = Parser::parseMulExpr(std::move(elem));
   while (check(TokenType::PLUS) || check(TokenType::MINUS)) {
     util::Position pos = cur.pos;
@@ -779,7 +873,7 @@ Parser::parseAddExpr(std::optional<ast::AssignElemPtr> elem)
     ast::ExprPtr rhs = parseMulExpr();
 
     auto aexpr = std::make_shared<ast::AriExpr>(
-      lhs, tokenType2AriOper(op), rhs
+      lhs, tokenType2AriOper(op), rhs // 注意结点挂载位置！！！
     );
     aexpr->pos = pos;
     builder.build(*aexpr);
@@ -789,10 +883,15 @@ Parser::parseAddExpr(std::optional<ast::AssignElemPtr> elem)
   return lhs;
 }
 
+/**
+ * @brief  解析 mul & div expression
+ * @return 解析到的 ast::Expr 结点指针
+ */
 ast::ExprPtr
 Parser::parseMulExpr(std::optional<ast::AssignElemPtr> elem)
 {
   // MulExpr -> (MulExpr [* | /])* Factor
+
   ast::ExprPtr lhs = parseFactor(std::move(elem));
   while (check(TokenType::MUL) || check(TokenType::DIV)) {
     util::Position pos = cur.pos;
@@ -803,7 +902,7 @@ Parser::parseMulExpr(std::optional<ast::AssignElemPtr> elem)
     ast::ExprPtr rhs = parseFactor();
 
     auto aexpr = std::make_shared<ast::AriExpr>(
-      lhs, tokenType2AriOper(op), rhs
+      lhs, tokenType2AriOper(op), rhs // 注意结点挂载位置！！！
     );
     aexpr->pos = pos;
     builder.build(*aexpr);
@@ -813,80 +912,162 @@ Parser::parseMulExpr(std::optional<ast::AssignElemPtr> elem)
   return lhs;
 }
 
+/**
+ * @brief  解析因子
+ * @return 解析到的 ast::Expr 结点指针
+ */
 ast::ExprPtr
 Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
 {
   // Factor -> ArrayElems
   //         | TupleElems
   //         | Elements
+  // NOTE: 对上述产生式进行了一定的修正，
+  //       补充了 ArrayElems 和 TupleElems 的元素访问
 
   util::Position pos = cur.pos;
 
   // ArrayElems -> [ (Expr)? (, Expr)* ]
   if (check(TokenType::LBRACK)) {
-    advance();
-    std::vector<ast::ExprPtr> elems{};
-    if (!check(TokenType::RBRACK)) {
-      elems.push_back(parseExpr());
-    }
-    while (!check(TokenType::RBRACK)) {
-      consume(TokenType::COMMA, "Expect ','");
-      elems.push_back(parseExpr());
-    }
-    advance();
+    auto aelems = parseArrayElems();
 
-    auto aelems = std::make_shared<ast::ArrayElems>(elems);
-    aelems->pos = pos;
-    builder.build(*aelems);
+    // NOTE: 可能存在 [1, 2, 3][1] 的情况，因此需要递归的解析对 ArrayElems 的访问！
+    if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
+      return parseAssignElem(aelems);
+    }
+
     return aelems;
   }
 
   // TupleElems -> ( (Expr , TupleElem)? )
   // TupleElem -> epsilon | Expr (, Expr)*
   if (check(TokenType::LPAREN)) {
-    advance();
+    auto telems = parseTupleElems();
 
-    bool is_tuple_elem = false;
-    std::vector<ast::ExprPtr> elems{};
-    while (!check(TokenType::RPAREN)) {
-      elems.push_back(parseExpr());
-      if (!check(TokenType::COMMA)) {
-        break;
-      }
-      is_tuple_elem = true;
-      advance();
-      if (elems.size() > 1 && check(TokenType::RPAREN)) {
-        //TODO: unexpected token ','
-        std::cerr << "parseFactor(): unexpected token" << std::endl;
-      }
+    // NOTE: 可能存在 (1, 2, 3).0 的情况，因此需要递归的解析对 TupleElems 的访问！
+    if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
+      return parseAssignElem(telems);
     }
 
-    consume(TokenType::RPAREN, "Expect ')'");
-    auto cnt = elems.size();
-
-    if (0 == cnt) {
-      auto bexpr = std::make_shared<ast::BracketExpr>(std::nullopt);
-      bexpr->pos = pos;
-      builder.build(*bexpr);
-      return bexpr;
-    }
-    if (!is_tuple_elem) {
-      // 单个表达式没有逗号不是元组，而是普通括号表达式
-      auto bexpr = std::make_shared<ast::BracketExpr>(elems[0]);
-      bexpr->pos = pos;
-      builder.build(*bexpr);
-      return bexpr;
-    }
-
-    auto telems = std::make_shared<ast::TupleElems>(elems);
-    telems->pos = pos;
-    builder.build(*telems);
     return telems;
   }
 
   return parseElement(std::move(elem));
 }
 
+/**
+ * @brief  解析数组元素
+ * @return 解析到的 ast::Expr 结点指针
+ */
+ast::ExprPtr
+Parser::parseArrayElems()
+{
+  // ArrayElems -> [ Expr (, Expr)* ]
+
+  util::Position pos = cur.pos;
+  consume(TokenType::LBRACK, "Expect '['");
+
+  std::vector<ast::ExprPtr> elems{};
+  if (!check(TokenType::RBRACK)) {
+    elems.push_back(parseExpr());
+  }
+  while (!check(TokenType::RBRACK)) {
+    util::Position commapos = cur.pos;
+    consume(TokenType::COMMA, "Expect ','");
+    if (check(TokenType::RBRACK)) {
+      reporter.report(
+        err::ParErrType::UNEXPECT_TOKEN,
+        "考虑删除这个 ','",
+        commapos,
+        ","
+      );
+      break;
+    }
+    elems.push_back(parseExpr());
+  } // end while
+  advance();
+
+  auto aelems = std::make_shared<ast::ArrayElems>(elems);
+  aelems->pos = pos;
+  builder.build(*aelems);
+
+  return aelems;
+}
+
+/**
+ * @brief  解析元组元素
+ * @return 解析到的 ast::Expr 结点指针
+ */
+ast::ExprPtr
+Parser::parseTupleElems()
+{
+  // TupleElems -> ( (Expr , TupleElem)? )
+  // TupleElem -> epsilon | Expr (, Expr)*
+
+  util::Position pos = cur.pos;
+  consume(TokenType::LPAREN, "Expect '('");
+
+  bool is_tuple_elem = false;
+  std::vector<ast::ExprPtr> elems{};
+
+  while (!check(TokenType::RPAREN)) {
+    elems.push_back(parseExpr());
+
+    util::Position commapos = cur.pos;
+    if (!check(TokenType::COMMA)) {
+      break;
+    }
+    advance();
+
+    is_tuple_elem = true;
+
+    if (elems.size() > 1 && check(TokenType::RPAREN)) {
+      reporter.report(
+        err::ParErrType::UNEXPECT_TOKEN,
+        "考虑删除这个 ','",
+        commapos,
+        ","
+      );
+    } // end if
+  } // end while
+
+  consume(TokenType::RPAREN, "Expect ')'");
+  auto cnt = elems.size();
+
+  if (0 == cnt) {
+    auto bexpr = std::make_shared<ast::BracketExpr>(std::nullopt);
+    bexpr->pos = pos;
+    builder.build(*bexpr);
+
+    if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
+      return parseAssignElem(bexpr);
+    }
+    return bexpr;
+  } // end if
+
+  if (!is_tuple_elem) {
+    // 单个表达式没有逗号不是元组，而是普通括号表达式
+    auto bexpr = std::make_shared<ast::BracketExpr>(elems[0]);
+    bexpr->pos = pos;
+    builder.build(*bexpr);
+
+    if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
+      return parseAssignElem(bexpr);
+    }
+
+    return bexpr;
+  } // end if
+
+  auto telems = std::make_shared<ast::TupleElems>(elems);
+  telems->pos = pos;
+  builder.build(*telems);
+  return telems;
+}
+
+/**
+ * @brief  解析元素
+ * @return 解析到的 ast::Expr 结点指针
+ */
 ast::ExprPtr
 Parser::parseElement(std::optional<ast::AssignElemPtr> elem)
 {
@@ -934,10 +1115,22 @@ Parser::parseCallExpr()
   std::vector<ast::ExprPtr> argv{};
   while (!check(TokenType::RPAREN)) {
     argv.push_back(parseExpr());
-    if (!check(TokenType::COMMA)) {
+
+    if (check(TokenType::RPAREN)) {
       break;
     }
-    advance();
+
+    util::Position commapos = cur.pos;
+    consume(TokenType::COMMA, "Expect ','");
+
+    if (check(TokenType::RPAREN)) {
+      reporter.report(
+        err::ParErrType::UNEXPECT_TOKEN,
+        "考虑删除这个 ','",
+        commapos,
+        ","
+      );
+    }
   }
   consume(TokenType::RPAREN, "Expect ')'");
 
@@ -955,11 +1148,19 @@ Parser::parseIfExpr()
   util::Position pos = cur.pos;
   consume(TokenType::IF, "Expect 'if'");
 
-  auto cond = parseExpr();
+  ast::ExprPtr cond = parseExpr();
+  ast::StmtBlockExprPtr body;
+  if (!check(TokenType::LBRACE)) {
+    // TODO: 缺少一个 body!
+    std::cerr << "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件" << std::endl;
 
-  builder.ctx->enterIf();
-  auto body = parseStmtBlockExpr();
-  builder.ctx->exitScope();
+    std::vector<ast::StmtPtr> stmts{};
+    body = std::make_shared<ast::StmtBlockExpr>(stmts);
+  } else {
+    builder.ctx->enterIf();
+    body = parseStmtBlockExpr();
+    builder.ctx->exitScope();
+  }
 
   // ElseClause -> else if Expr StmtBlockExpr ElseClause
   //             | else StmtBlockExpr
@@ -990,15 +1191,28 @@ Parser::parseElseClause()
 
   // (if Expr)?
   std::optional<ast::ExprPtr> cond = std::nullopt;
+  ast::StmtBlockExprPtr body;
   if (check(TokenType::IF)) {
     advance();
     cond = parseExpr();
-  }
 
-  // StmtBlockExpr
-  builder.ctx->enterIf();
-  auto body = parseStmtBlockExpr();
-  builder.ctx->exitScope();
+    if (!check(TokenType::LBRACE)) {
+      // TODO: 缺少一个 body!
+      std::cerr << "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件" << std::endl;
+
+      std::vector<ast::StmtPtr> stmts{};
+      body = std::make_shared<ast::StmtBlockExpr>(stmts);
+    } else {
+      builder.ctx->enterIf();
+      body = parseStmtBlockExpr();
+      builder.ctx->exitScope();
+    }
+  } else {
+    // StmtBlockExpr
+    builder.ctx->enterIf();
+    body = parseStmtBlockExpr();
+    builder.ctx->exitScope();
+  }
 
   auto eclause = std::make_shared<ast::ElseClause>(cond, body);
   eclause->pos = pos;
@@ -1014,13 +1228,21 @@ Parser::parseWhileLoopExpr()
   util::Position pos = cur.pos;
   consume(TokenType::WHILE, "Expect 'while'");
 
-  auto expr = parseExpr();
+  ast::ExprPtr cond = parseExpr();
+  ast::StmtBlockExprPtr body;
+  if (!check(TokenType::LBRACE)) {
+    // TODO: 缺少一个 body!
+    std::cerr << "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件" << std::endl;
 
-  builder.ctx->enterWhile();
-  auto block = parseStmtBlockExpr();
-  builder.ctx->exitScope();
+    std::vector<ast::StmtPtr> stmts{};
+    body = std::make_shared<ast::StmtBlockExpr>(stmts);
+  } else {
+    builder.ctx->enterIf();
+    body = parseStmtBlockExpr();
+    builder.ctx->exitScope();
+  }
 
-  auto wlexpr = std::make_shared<ast::WhileLoopExpr>(expr, block);
+  auto wlexpr = std::make_shared<ast::WhileLoopExpr>(cond, body);
   wlexpr->is_ctlflow = true;
   wlexpr->pos = pos;
   builder.build(*wlexpr);
@@ -1044,11 +1266,21 @@ Parser::parseForLoopExpr()
 
   consume(TokenType::IN, "Expect 'in'");
 
-  auto iter = parseIterable();
+  ast::ExprPtr iter = parseIterable();
+  ast::StmtBlockExprPtr body;
+  if (!check(TokenType::LBRACE)) {
+    // TODO: 缺少一个 body!
+    std::cerr << "缺少语句块，如果这是语句块，考虑在前面添加一个可迭代对象" << std::endl;
 
-  auto block = parseStmtBlockExpr();
+    std::vector<ast::StmtPtr> stmts{};
+    body = std::make_shared<ast::StmtBlockExpr>(stmts);
+  } else {
+    builder.ctx->enterIf();
+    body = parseStmtBlockExpr();
+    builder.ctx->exitScope();
+  }
 
-  auto flexpr = std::make_shared<ast::ForLoopExpr>(mut, name, iter, block);
+  auto flexpr = std::make_shared<ast::ForLoopExpr>(mut, name, iter, body);
   flexpr->is_ctlflow = true;
   flexpr->pos = pos;
   builder.build(*flexpr);

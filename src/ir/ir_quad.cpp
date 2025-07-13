@@ -2,6 +2,11 @@
 
 namespace ir {
 
+/**
+ * @brief  IR Operator 转 string
+ * @param  op 待转换的 IR Operator
+ * @return 转换到的 string
+ */
 [[nodiscard]] std::string
 irop2str(const IROp &op)
 {
@@ -34,6 +39,9 @@ irop2str(const IROp &op)
   } // end of switch
 }
 
+/**
+ * @brief 四元式 pretty print
+ */
 [[nodiscard]] std::string
 IRQuad::str() const
 {

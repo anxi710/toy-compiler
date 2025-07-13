@@ -9,6 +9,7 @@ ReturnChecker::visit(ast::StmtBlockExpr &sbexpr)
     if (!has_ret) {
       stmt->accept(*this);
     }
+    // TODO: 可以选择报告一个 warning
     stmt->unreachable = has_ret;
   }
 }
@@ -63,6 +64,7 @@ ReturnChecker::visit(ast::IfExpr &iexpr)
     return;
   }
 
+  // 路径覆盖
   ReturnChecker rchecker;
   iexpr.body->accept(rchecker);
   has_ret = rchecker.has_ret;
@@ -82,18 +84,21 @@ ReturnChecker::visit(ast::ElseClause &eclause)
 void
 ReturnChecker::visit(ast::WhileLoopExpr &wlexpr)
 {
+  // 认为 while 表达式可能不会执行
   has_ret = false;
 }
 
 void
 ReturnChecker::visit(ast::ForLoopExpr &flexpr)
 {
+  // 认为 for 表达式可能不会执行
   has_ret = false;
 }
 
 void
 ReturnChecker::visit(ast::LoopExpr &lexpr)
 {
+  // 认为 loop 表达式一定会执行
   lexpr.body->accept(*this);
 }
 

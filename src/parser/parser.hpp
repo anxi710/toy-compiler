@@ -53,6 +53,8 @@ private:
   auto parseAddExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
   auto parseMulExpr(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
   auto parseFactor(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
+  auto parseArrayElems() -> ast::ExprPtr;
+  auto parseTupleElems() -> ast::ExprPtr;
   auto parseElement(std::optional<ast::AssignElemPtr> elem = std::nullopt) -> ast::ExprPtr;
   auto parseCallExpr() -> ast::CallExprPtr;
   auto parseIfExpr() -> ast::IfExprPtr;

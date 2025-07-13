@@ -2,12 +2,19 @@
 
 #include "ast.hpp"
 #include "visitor.hpp"
+#include "err_report.hpp"
 #include "type_factory.hpp"
+#include "semantic_context.hpp"
 
 namespace sem {
 
+// 检查 statement block expression 中是否含有 break 语句
+// 并检查各 break 语句是否具有相同的返回值类型
+// 存储检查结果以便外部直接访问
 class BreakChecker : public ast::BaseVisitor {
 public:
+  BreakChecker(const sem::SemanticContext &ctx,
+    err::ErrReporter &reporter) : ctx(ctx), reporter(reporter) {}
   ~BreakChecker() override = default;
 
 public:
@@ -22,7 +29,11 @@ public:
   void visit(ast::ElseClause &eclause) override;
 
 public:
-  bool has_break = false;
+  const sem::SemanticContext &ctx;      // semantic context
+  err::ErrReporter           &reporter; // error reporter
+
+  bool has_break = false; // 是否含有 break expression
+  // 存储 break 表达式携带的返回值类型
   type::TypePtr type = type::TypeFactory::UNKNOWN_TYPE;
 };
 

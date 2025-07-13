@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "ast.hpp"
+#include "err_report.hpp"
 #include "ir_builder.hpp"
 #include "symbol_table.hpp"
 #include "semantic_checker.hpp"
@@ -12,7 +13,7 @@ namespace par {
 class SemanticIRBuilder {
 public:
   SemanticIRBuilder(sym::SymbolTable &symtab, err::ErrReporter &reporter)
-    : ctx(std::make_unique<sem::SemanticContext>(symtab)),
+    : ctx(std::make_unique<sem::SemanticContext>(symtab)), reporter(reporter),
       sema(*ctx, reporter), ir(*ctx) {}
   ~SemanticIRBuilder() = default;
 
@@ -52,8 +53,9 @@ public:
   std::unique_ptr<sem::SemanticContext> ctx;
 
 private:
-  sem::SemanticChecker sema;
-  ir::IRBuilder        ir;
+  err::ErrReporter     &reporter;
+  sem::SemanticChecker  sema;
+  ir::IRBuilder         ir;
 };
 
 } // namespace par

@@ -16,6 +16,7 @@ public:
   virtual void visit(FuncHeaderDecl &fhdecl) = 0;
   virtual void visit(FuncDecl &fdecl) = 0;
   virtual void visit(ExprStmt &estmt) = 0;
+  virtual void visit(EmptyExpr &eexpr) = 0;
   virtual void visit(BracketExpr &bexpr) = 0;
   virtual void visit(AssignElem &aelem) = 0;
   virtual void visit(Variable &var) = 0;
@@ -42,6 +43,9 @@ public:
   virtual void visit(EmptyStmt &estmt) = 0;
 };
 
+// 继承自 NodeVisitor 并实现了所有虚函数
+// 其余 Visitor 继承该类，而非纯虚类 NodeVisitor
+// 可以按需实现虚函数，而非所有虚函数都实现
 class BaseVisitor : public NodeVisitor {
 public:
   ~BaseVisitor() override = default;
@@ -54,6 +58,7 @@ public:
   void visit(FuncHeaderDecl &fhdecl) override {};
   void visit(FuncDecl &fdecl) override {};
   void visit(ExprStmt &estmt) override {};
+  void visit(EmptyExpr &eexpr) override {};
   void visit(BracketExpr &bexpr) override {};
   void visit(AssignElem &aelem) override {};
   void visit(Variable &var) override {};
