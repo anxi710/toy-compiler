@@ -9,6 +9,8 @@
 !.clang-tidy
 !.githooks/*
 !riscv-asm/**/*.s
+!riscv-asm/main.c
+!riscv-asm/**/*.rs
 !src/**/*.cpp
 !src/**/*.hpp
 !Makefile
