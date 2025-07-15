@@ -4,6 +4,7 @@
 #include <fstream>
 
 #include "panic.hpp"
+#include "type.hpp"
 #include "symbol_table.hpp"
 
 namespace sym {
@@ -57,7 +58,7 @@ void
 SymbolTable::declareFunc(const std::string &fname, FunctionPtr func)
 {
   if (funcs.contains(fname)) {
-    util::runtime_error("function name already exists");
+    UNREACHABLE("function name already exists");
   }
 
   funcs[fname] = std::move(func);
@@ -69,9 +70,20 @@ SymbolTable::declareFunc(const std::string &fname, FunctionPtr func)
  * @param p_var 变量符号指针
  */
 void
-SymbolTable::declareVar(const std::string &vname, VariablePtr p_var)
+SymbolTable::declareVal(const std::string &vname, ValuePtr val)
 {
-  (*curscope)[vname] = std::move(p_var);
+  // BUG: 如何支持重影还有待商榷！
+  (*curscope)[vname] = std::move(val);
+}
+
+void
+SymbolTable::declareConst(const std::string &cname, ConstantPtr con)
+{
+  if (constval.contains(cname)) {
+    UNREACHABLE("const value already exists");
+  }
+
+  constval[cname] = std::move(con);
 }
 
 /**
@@ -93,8 +105,8 @@ SymbolTable::lookupFunc(const std::string &name) const
  * @param  name 变量名
  * @return std::optional<VariablePtr> 需要检查是否能查到
  */
-std::optional<VariablePtr>
-SymbolTable::lookupVar(const std::string &name) const
+std::optional<ValuePtr>
+SymbolTable::lookupVal(const std::string &name) const
 {
   auto exit_scope = [](std::string &scope_name) -> bool {
     std::size_t idx = scope_name.find_last_of(':');
@@ -108,17 +120,27 @@ SymbolTable::lookupVar(const std::string &name) const
   auto scope_name = curname;
 
   bool flag = false;
-  VariablePtr p_var;
+  ValuePtr val;
   do {
     auto p_scope = scopes.find(scope_name)->second;
     if (p_scope->contains(name)) {
       flag = true;
-      p_var = p_scope->find(name)->second;
+      val = p_scope->find(name)->second;
       break;
     }
   } while (exit_scope(scope_name));
 
-  return flag ? std::optional<VariablePtr>{p_var} : std::nullopt;
+  return flag ? std::optional<ValuePtr>{val} : std::nullopt;
+}
+
+std::optional<ConstantPtr>
+SymbolTable::lookupConst(const std::string &name) const
+{
+  if (constval.contains(name)) {
+    return constval.find(name)->second;
+  } else {
+    return std::nullopt;
+  }
 }
 
 /**
@@ -148,18 +170,18 @@ SymbolTable::getFuncName()
  * @brief 检查作用域下变量是否有类型
  * @return 未定义类型变量
  */
-std::vector<VariablePtr>
+std::vector<ValuePtr>
 SymbolTable::checkAutoTypeInfer() const
 {
-  std::vector<VariablePtr> failed_vars;
+  std::vector<ValuePtr> failed_vals;
 
-  for (const auto &[name, var] : *curscope) {
-    if (var->type->kind == type::TypeKind::UNKNOWN) {
-      failed_vars.push_back(var);
+  for (const auto &[name, val] : *curscope) {
+    if (val->type->kind == type::TypeKind::UNKNOWN) {
+      failed_vals.push_back(val);
     }
   }
 
-  return failed_vars;
+  return failed_vals;
 }
 
 /**
@@ -167,7 +189,7 @@ SymbolTable::checkAutoTypeInfer() const
  * @param out 输出流
  */
 void
-SymbolTable::printSymbol(std::ofstream &out)
+SymbolTable::dump(std::ofstream &out)
 {
   std::println(out, "搜集到如下函数符号：");
 

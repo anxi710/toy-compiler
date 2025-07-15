@@ -1,6 +1,3 @@
-#include <iostream>
-#include <cassert>
-
 #include "panic.hpp"
 #include "parser.hpp"
 
@@ -21,7 +18,7 @@ Parser::nextToken()
     return token.value();
   }
   // 如果识别到未知 token，则发生了词法分析错误，且需要立即终止
-  util::terminate(reporter);
+  err::terminate(reporter);
 }
 
 /**
@@ -330,7 +327,7 @@ Parser::parseType()
   }
 
   //TODO: error report
-  util::unreachable("par::Parse::parseType()");
+  UNREACHABLE("unreachable point");
 }
 
 /**
@@ -383,10 +380,10 @@ Parser::parseStmt()
   if (check(TokenType::LET)) {
     // VarDeclStmt -> let ...
     return parseVarDeclStmt();
-  } else {
-    // other case
-    return parseExprStmt();
   }
+
+  // other case
+  return parseExprStmt();
 }
 
 /**
@@ -456,7 +453,7 @@ Parser::parseExprStmt()
         expr->used_as_stmt = true;
       } else {
         //TODO: expect ';'!!!
-        std::cerr << "parseExprStmt(): Expect ';'" << std::endl;
+        std::println(stderr, "parseExprStmt(): Expect ';'");
         expr->used_as_stmt = false;
       }
     }
@@ -519,21 +516,27 @@ Parser::parseExpr()
        * 都即可以作为赋值语句的左值，又可以作为表达式的一个操作数
        */
       util::Position pos = cur.pos;
-      auto val = parseValue();
-      ast::AssignElemPtr aelem;
+      auto val = parseValue(); // x 会被简单的识别为一个 Variable！
+      ast::AssignElemPtr aelem = nullptr;
 
       if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
         aelem = parseAssignElem(val);
-      } else {
-        aelem = std::make_shared<ast::AssignElem>(val);
-        aelem->pos = pos;
-        builder.build(*aelem);
       }
 
       if (check(TokenType::ASSIGN)) {
+        if (aelem == nullptr) {
+          aelem = std::make_shared<ast::AssignElem>(val);
+          aelem->kind = ast::AssignElem::Kind::VARIABLE;
+          aelem->pos = pos;
+          builder.build(*aelem);
+        }
         expr = parseAssignExpr(std::move(aelem));
       } else {
-        expr = parseCmpExpr(aelem);
+        if (aelem == nullptr) {
+          expr = parseCmpExpr(val);
+        } else {
+          expr = parseCmpExpr(aelem);
+        }
       }
     } // end if
   } else if (check(TokenType::INT)
@@ -640,22 +643,25 @@ ast::AssignElemPtr
 Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
 {
   // AssignElem -> Variable
-  //             | ArrayAccess
-  //             | TupleAccess
+  //             | ArrAcc
+  //             | TupAcc
 
   util::Position pos = cur.pos;
 
   if (check(TokenType::ID) && checkAhead(TokenType::ASSIGN)) {
     // Variable -> <ID>
-    std::string name = cur.value;
-    advance();
-    auto var = std::make_shared<ast::Variable>(name);
-    var->pos = pos;
-    builder.build(*var);
-    auto aelem = std::make_shared<ast::AssignElem>(var);
-    aelem->pos = pos;
-    builder.build(*aelem);
-    return aelem;
+    // NOTE: 在设计中，并不会直接使用到这部分逻辑！
+    // std::string name = cur.value;
+    // advance();
+    // auto var = std::make_shared<ast::Variable>(name);
+    // var->pos = pos;
+    // builder.build(*var);
+    // auto aelem = std::make_shared<ast::AssignElem>(var);
+    // aelem->kind = ast::AssignElem::Kind::VARIABLE;
+    // aelem->pos = pos;
+    // builder.build(*aelem);
+    // return aelem;
+    UNREACHABLE("The function should not be executed up to here");
   }
 
   ast::ExprPtr value;
@@ -665,33 +671,33 @@ Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
     value = parseValue();
   }
 
-  // ArrayAccess -> Value [ Expr ]
-  //              | ArrayAccess [ Expr ]
-  //              | TupleAccess [ Expr ]
+  // ArrAcc -> Value [ Expr ]
+  //         | ArrAcc [ Expr ]
+  //         | TupAcc [ Expr ]
   //
-  // TupleAccess -> Value . <NUM>
-  //              | TupleAccess . <NUM>
-  //              | ArrayAccess . <NUM>
+  // TupAcc -> Value . <NUM>
+  //         | TupAcc . <NUM>
+  //         | ArrAcc . <NUM>
   //
   // 通过检查下一个 token 是 [ 还是 . 调用相应的 parse 函数
-  // 可赋值元素必须要先识别一个 ArrayAccess 或 TupleAccess
+  // 可赋值元素必须要先识别一个 ArrAcc 或 TupAcc
   ast::AssignElemPtr aelem;
 
   if (check(TokenType::LBRACK)) {
-    aelem = parseArrayAccess(value);
+    aelem = parseArrAcc(value);
   } else if (check(TokenType::DOT)) {
-    aelem = parseTupleAccess(value);
+    aelem = parseTupAcc(value);
   } else {
-    util::unreachable("Parse::parseAssignElem()");
+    UNREACHABLE("unreachable point");
   }
 
   while (check(TokenType::LBRACK) || check(TokenType::LPAREN)) {
     if (check(TokenType::LBRACK)) {
-      aelem = parseArrayAccess(aelem);
+      aelem = parseArrAcc(aelem);
     } else if (check(TokenType::DOT)) {
-      aelem = parseTupleAccess(aelem);
+      aelem = parseTupAcc(aelem);
     } else {
-      util::unreachable("Parse::parseAssignElem()");
+      UNREACHABLE("unreachable point");
     }
   }
 
@@ -700,19 +706,20 @@ Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
 
 /**
  * @brief  解析数组访问
- * @return 解析到的 ast::ArrayAccess 结点指针
+ * @return 解析到的 ast::ArrAcc 结点指针
  */
-ast::ArrayAccessPtr
-Parser::parseArrayAccess(ast::ExprPtr val)
+ast::ArrAccPtr
+Parser::parseArrAcc(ast::ExprPtr val)
 {
-  // ArrayAccess -> Value [ Expr ]
+  // ArrAcc -> Value [ Expr ]
 
   util::Position pos = cur.pos;
   consume(TokenType::LBRACK, "Expect '['");
   auto idx = parseExpr();
   consume(TokenType::RBRACK, "Expect ']'");
 
-  auto aacc = std::make_shared<ast::ArrayAccess>(val, idx);
+  auto aacc = std::make_shared<ast::ArrAcc>(val, idx);
+  aacc->kind = ast::AssignElem::Kind::ARRACC;
   aacc->pos = pos;
   builder.build(*aacc);
   return aacc;
@@ -720,12 +727,12 @@ Parser::parseArrayAccess(ast::ExprPtr val)
 
 /**
  * @brief  解析元组访问
- * @return 解析到的 ast::TupleAccess 结点指针
+ * @return 解析到的 ast::TupAcc 结点指针
  */
-ast::TupleAccessPtr
-Parser::parseTupleAccess(ast::ExprPtr val)
+ast::TupAccPtr
+Parser::parseTupAcc(ast::ExprPtr val)
 {
-  // TupleAccess -> Value . <NUM>
+  // TupAcc -> Value . <NUM>
 
   util::Position pos = cur.pos;
   consume(TokenType::DOT, "Expect '.'");
@@ -736,7 +743,8 @@ Parser::parseTupleAccess(ast::ExprPtr val)
   }
   consume(TokenType::INT, "Expect <NUM>");
 
-  auto tacc = std::make_shared<ast::TupleAccess>(val, idx);
+  auto tacc = std::make_shared<ast::TupAcc>(val, idx);
+  tacc->kind = ast::AssignElem::Kind::TUPACC;
   tacc->pos = pos;
   builder.build(*tacc);
   return tacc;
@@ -799,7 +807,7 @@ tokenType2CmpOper(TokenType type)
     default:
   }
 
-  util::unreachable("par::tokenType2CmpOper()");
+  UNREACHABLE("unreachable point");
 }
 
 /**
@@ -819,7 +827,7 @@ tokenType2AriOper(TokenType type)
     default:
   }
 
-  util::unreachable("par::tokenType2AriOper");
+  UNREACHABLE("unreachable point");
 }
 
 /**
@@ -827,11 +835,11 @@ tokenType2AriOper(TokenType type)
  * @return 解析到的 ast::Expr 结点指针
  */
 ast::ExprPtr
-Parser::parseCmpExpr(std::optional<ast::AssignElemPtr> elem)
+Parser::parseCmpExpr(std::optional<ast::ExprPtr> expr)
 {
   // CmpExpr -> (CmpExpr CmpOper)* AddExpr
 
-  ast::ExprPtr lhs = parseAddExpr(std::move(elem));
+  ast::ExprPtr lhs = parseAddExpr(std::move(expr));
   while (check(TokenType::LT) || check(TokenType::LEQ)
       || check(TokenType::GT) || check(TokenType::GEQ)
       || check(TokenType::EQ) || check(TokenType::NEQ)
@@ -859,11 +867,11 @@ Parser::parseCmpExpr(std::optional<ast::AssignElemPtr> elem)
  * @return 解析到的 ast::Expr 结点指针
  */
 ast::ExprPtr
-Parser::parseAddExpr(std::optional<ast::AssignElemPtr> elem)
+Parser::parseAddExpr(std::optional<ast::ExprPtr> expr)
 {
   // AddExpr -> (AddExpr [+ | -])* MulExpr
 
-  ast::ExprPtr lhs = Parser::parseMulExpr(std::move(elem));
+  ast::ExprPtr lhs = Parser::parseMulExpr(std::move(expr));
   while (check(TokenType::PLUS) || check(TokenType::MINUS)) {
     util::Position pos = cur.pos;
 
@@ -888,11 +896,11 @@ Parser::parseAddExpr(std::optional<ast::AssignElemPtr> elem)
  * @return 解析到的 ast::Expr 结点指针
  */
 ast::ExprPtr
-Parser::parseMulExpr(std::optional<ast::AssignElemPtr> elem)
+Parser::parseMulExpr(std::optional<ast::ExprPtr> expr)
 {
   // MulExpr -> (MulExpr [* | /])* Factor
 
-  ast::ExprPtr lhs = parseFactor(std::move(elem));
+  ast::ExprPtr lhs = parseFactor(std::move(expr));
   while (check(TokenType::MUL) || check(TokenType::DIV)) {
     util::Position pos = cur.pos;
 
@@ -917,7 +925,7 @@ Parser::parseMulExpr(std::optional<ast::AssignElemPtr> elem)
  * @return 解析到的 ast::Expr 结点指针
  */
 ast::ExprPtr
-Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
+Parser::parseFactor(std::optional<ast::ExprPtr> expr)
 {
   // Factor -> ArrayElems
   //         | TupleElems
@@ -925,11 +933,9 @@ Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
   // NOTE: 对上述产生式进行了一定的修正，
   //       补充了 ArrayElems 和 TupleElems 的元素访问
 
-  util::Position pos = cur.pos;
-
   // ArrayElems -> [ (Expr)? (, Expr)* ]
   if (check(TokenType::LBRACK)) {
-    auto aelems = parseArrayElems();
+    auto aelems = parseArrElems();
 
     // NOTE: 可能存在 [1, 2, 3][1] 的情况，因此需要递归的解析对 ArrayElems 的访问！
     if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
@@ -942,7 +948,7 @@ Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
   // TupleElems -> ( (Expr , TupleElem)? )
   // TupleElem -> epsilon | Expr (, Expr)*
   if (check(TokenType::LPAREN)) {
-    auto telems = parseTupleElems();
+    auto telems = parseTupElems();
 
     // NOTE: 可能存在 (1, 2, 3).0 的情况，因此需要递归的解析对 TupleElems 的访问！
     if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
@@ -952,7 +958,7 @@ Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
     return telems;
   }
 
-  return parseElement(std::move(elem));
+  return parseElement(std::move(expr));
 }
 
 /**
@@ -960,7 +966,7 @@ Parser::parseFactor(std::optional<ast::AssignElemPtr> elem)
  * @return 解析到的 ast::Expr 结点指针
  */
 ast::ExprPtr
-Parser::parseArrayElems()
+Parser::parseArrElems()
 {
   // ArrayElems -> [ Expr (, Expr)* ]
 
@@ -987,7 +993,7 @@ Parser::parseArrayElems()
   } // end while
   advance();
 
-  auto aelems = std::make_shared<ast::ArrayElems>(elems);
+  auto aelems = std::make_shared<ast::ArrElems>(elems);
   aelems->pos = pos;
   builder.build(*aelems);
 
@@ -999,7 +1005,7 @@ Parser::parseArrayElems()
  * @return 解析到的 ast::Expr 结点指针
  */
 ast::ExprPtr
-Parser::parseTupleElems()
+Parser::parseTupElems()
 {
   // TupleElems -> ( (Expr , TupleElem)? )
   // TupleElem -> epsilon | Expr (, Expr)*
@@ -1058,7 +1064,7 @@ Parser::parseTupleElems()
     return bexpr;
   } // end if
 
-  auto telems = std::make_shared<ast::TupleElems>(elems);
+  auto telems = std::make_shared<ast::TupElems>(elems);
   telems->pos = pos;
   builder.build(*telems);
   return telems;
@@ -1069,14 +1075,14 @@ Parser::parseTupleElems()
  * @return 解析到的 ast::Expr 结点指针
  */
 ast::ExprPtr
-Parser::parseElement(std::optional<ast::AssignElemPtr> elem)
+Parser::parseElement(std::optional<ast::ExprPtr> expr)
 {
   // Element -> Number
   //          | Value
   //          | AssignElem
 
-  if (elem.has_value()) {
-    return elem.value();
+  if (expr.has_value()) {
+    return expr.value();
   }
 
   // Number -> <NUM>
@@ -1091,10 +1097,10 @@ Parser::parseElement(std::optional<ast::AssignElemPtr> elem)
   }
 
   // Value -> BracketExpr | CallExpr | Variable
-  // AssignElem -> Variable | ArrayAccess | TupleAccess
-  //   ArrayAccess -> Value [ Expr ]
-  //   TupleAccess -> Value . <NUM>
-  auto val = parseValue();
+  // AssignElem -> Variable | ArrAcc | TupAcc
+  //   ArrAcc -> Value [ Expr ]
+  //   TupAcc -> Value . <NUM>
+  auto val = parseValue(); // 在表达式中 Variable 被识别为一个 Value 而不是一个 AssignElem
   if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
     return parseAssignElem(val);
   }
@@ -1152,7 +1158,7 @@ Parser::parseIfExpr()
   ast::StmtBlockExprPtr body;
   if (!check(TokenType::LBRACE)) {
     // TODO: 缺少一个 body!
-    std::cerr << "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件" << std::endl;
+    std::println(stderr, "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件");
 
     std::vector<ast::StmtPtr> stmts{};
     body = std::make_shared<ast::StmtBlockExpr>(stmts);
@@ -1198,7 +1204,7 @@ Parser::parseElseClause()
 
     if (!check(TokenType::LBRACE)) {
       // TODO: 缺少一个 body!
-      std::cerr << "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件" << std::endl;
+      std::println(stderr, "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件");
 
       std::vector<ast::StmtPtr> stmts{};
       body = std::make_shared<ast::StmtBlockExpr>(stmts);
@@ -1232,7 +1238,7 @@ Parser::parseWhileLoopExpr()
   ast::StmtBlockExprPtr body;
   if (!check(TokenType::LBRACE)) {
     // TODO: 缺少一个 body!
-    std::cerr << "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件" << std::endl;
+    std::println(stderr, "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件");
 
     std::vector<ast::StmtPtr> stmts{};
     body = std::make_shared<ast::StmtBlockExpr>(stmts);
@@ -1261,8 +1267,9 @@ Parser::parseForLoopExpr()
 
   // 这里简单的将迭代器的类型认为是 i32
   // 实际类型应该由可迭代对象的元素的类型确定
-  builder.ctx->declareVar(name, mut, true,
-    type::TypeFactory::INT_TYPE, varpos);
+  builder.ctx->declareVal(
+    name, mut, true, type::TypeFactory::INT_TYPE, varpos
+  );
 
   consume(TokenType::IN, "Expect 'in'");
 
@@ -1270,7 +1277,7 @@ Parser::parseForLoopExpr()
   ast::StmtBlockExprPtr body;
   if (!check(TokenType::LBRACE)) {
     // TODO: 缺少一个 body!
-    std::cerr << "缺少语句块，如果这是语句块，考虑在前面添加一个可迭代对象" << std::endl;
+    std::println(stderr, "缺少语句块，如果这是语句块，考虑在前面添加一个可迭代对象");
 
     std::vector<ast::StmtPtr> stmts{};
     body = std::make_shared<ast::StmtBlockExpr>(stmts);

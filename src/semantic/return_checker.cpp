@@ -1,3 +1,5 @@
+#include <algorithm>
+
 #include "return_checker.hpp"
 
 namespace sem {
@@ -59,20 +61,29 @@ ReturnChecker::visit(ast::BracketExpr &bexpr)
 void
 ReturnChecker::visit(ast::IfExpr &iexpr)
 {
+  // 如果没有 else 分支或最后不是无条件 else，则不满足全路径返回
   if (iexpr.elses.empty() || iexpr.elses.back()->cond.has_value()) {
     has_ret = false;
     return;
   }
 
   // 路径覆盖
-  ReturnChecker rchecker;
-  iexpr.body->accept(rchecker);
-  has_ret = rchecker.has_ret;
-  for (const auto &eclause : iexpr.elses) {
-    rchecker.has_ret = false;
-    eclause->accept(rchecker);
-    has_ret &= rchecker.has_ret;
-  }
+  // 检查 if 主体是否有 return
+  ReturnChecker checker;
+  iexpr.body->accept(checker);
+  bool if_has_ret = checker.has_ret;
+
+  // 所有 else 分支都必须 return
+  bool else_has_ret = std::ranges::all_of(
+    iexpr.elses,
+    [](const auto &eclause) {
+      ReturnChecker checker;
+      eclause->accept(checker);
+      return checker.has_ret;
+    }
+  );
+
+  has_ret = if_has_ret && else_has_ret;
 }
 
 void

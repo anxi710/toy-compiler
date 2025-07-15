@@ -27,12 +27,12 @@ public:
   void visit(ast::AssignExpr &aexpr) override;
   void visit(ast::AssignElem &aelem) override;
   void visit(ast::Variable &var) override;
-  void visit(ast::ArrayAccess &aacc) override;
-  void visit(ast::TupleAccess &tacc) override;
+  void visit(ast::ArrAcc &aacc) override;
+  void visit(ast::TupAcc &tacc) override;
   void visit(ast::CmpExpr &cexpr) override;
   void visit(ast::AriExpr &aexpr) override;
-  void visit(ast::ArrayElems &aelems) override;
-  void visit(ast::TupleElems &telems) override;
+  void visit(ast::ArrElems &aelems) override;
+  void visit(ast::TupElems &telems) override;
   void visit(ast::Number &num) override;
   void visit(ast::BracketExpr &bexpr) override;
   void visit(ast::CallExpr &cexpr) override;
@@ -42,7 +42,11 @@ public:
   void visit(ast::ForLoopExpr &flexpr) override;
   void visit(ast::Interval &interval) override;
   void visit(ast::IterableVal &iter) override;
-  void visit(ast::LoopExpr&lexpr) override;
+  void visit(ast::LoopExpr &lexpr) override;
+
+private:
+  void checkInit(ast::Expr &expr);
+  void checkCondition(ast::Expr &cond, util::Position pos);
 
 private:
   SemanticContext  &ctx;      // semantic context

@@ -50,35 +50,57 @@ IRQuad::str() const
     case IROp::SUB:
     case IROp::MUL:
     case IROp::DIV:
+      return std::format(
+        "{} = {} {} {}",
+        dst->str(),
+        arg1->str(),
+        irop2str(op),
+        arg2->str()
+      );
     case IROp::EQ:
     case IROp::NEQ:
     case IROp::GEQ:
     case IROp::GT:
     case IROp::LEQ:
     case IROp::LT:
+      return std::format(
+        "{} = ({} {} {})",
+        dst->str(),
+        arg1->str(),
+        irop2str(op),
+        arg2->str()
+      );
     case IROp::INDEX:
+      return std::format(
+        "{} = {}[{}]",
+        dst->str(),
+        arg1->str(),
+        arg2->str()
+      );
     case IROp::DOT:
       return std::format(
-        "({}, {}, {}, {})",
-        irop2str(op),
-        arg1.value.value()->name,
-        arg2.value.value()->name,
-        dst.value.value()->name
+        "{} = {}.{}",
+        dst->str(),
+        arg1->str(),
+        arg2->str()
       );
     case IROp::ASSIGN:
       return std::format(
-        "({}, {}, -, {})",
-        irop2str(op),
-        arg1.value.value()->name,
-        dst.value.value()->name
+        "{} = {}",
+        dst->str(),
+        arg1->str()
       );
     case IROp::GOTO:
-    case IROp::LABEL:
-    case IROp::FUNC:
     case IROp::CALL:
       return std::format(
-        "({}, -, -, {})",
+        "{} {}",
         irop2str(op),
+        label
+      );
+    case IROp::LABEL:
+    case IROp::FUNC:
+      return std::format(
+        "{}:",
         label
       );
     case IROp::BEQ:
@@ -88,18 +110,18 @@ IRQuad::str() const
     case IROp::BLE:
     case IROp::BLT:
       return std::format(
-        "({}, {}, {}, {})",
+        "if {} {} {} goto {}",
+        arg1->str(),
         irop2str(op),
-        arg1.value.value()->name,
-        arg2.value.value()->name,
+        arg2->str(),
         label
       );
     case IROp::RETURN:
     case IROp::PARAM:
       return std::format(
-        "({}, {}, -, -)",
+        "{} {}",
         irop2str(op),
-        arg1.value.value()->name
+        arg1->str()
       );
   } // end of switch
 }

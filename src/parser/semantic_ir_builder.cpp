@@ -53,9 +53,6 @@ void
 SemanticIRBuilder::build(ast::EmptyStmt &estmt)
 {
   sema.visit(estmt);
-  if (!reporter.hasErrs()) {
-    ir.visit(estmt);
-  }
 }
 
 void
@@ -123,7 +120,7 @@ SemanticIRBuilder::build(ast::Variable &var)
 }
 
 void
-SemanticIRBuilder::build(ast::ArrayAccess &aacc)
+SemanticIRBuilder::build(ast::ArrAcc &aacc)
 {
   sema.visit(aacc);
   if (!reporter.hasErrs()) {
@@ -132,7 +129,7 @@ SemanticIRBuilder::build(ast::ArrayAccess &aacc)
 }
 
 void
-SemanticIRBuilder::build(ast::TupleAccess &tacc)
+SemanticIRBuilder::build(ast::TupAcc &tacc)
 {
   sema.visit(tacc);
   if (!reporter.hasErrs()) {
@@ -168,7 +165,7 @@ SemanticIRBuilder::build(ast::AriExpr &aexpr)
 }
 
 void
-SemanticIRBuilder::build(ast::ArrayElems &aelems)
+SemanticIRBuilder::build(ast::ArrElems &aelems)
 {
   sema.visit(aelems);
   if (!reporter.hasErrs()) {
@@ -177,7 +174,7 @@ SemanticIRBuilder::build(ast::ArrayElems &aelems)
 }
 
 void
-SemanticIRBuilder::build(ast::TupleElems &telems)
+SemanticIRBuilder::build(ast::TupElems &telems)
 {
   sema.visit(telems);
   if (!reporter.hasErrs()) {

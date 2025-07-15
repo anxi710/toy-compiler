@@ -209,16 +209,6 @@ displaySemErrType(SemErrType type)
         "UninitializedVariable",
         "变量未初始化"
       };
-    case SemErrType::ASSIGN_NOT_VAR:
-      return {
-        "InvalidAssignment",
-        "无效赋值语句"
-      };
-    case SemErrType::ASSIGN_UNDECLARED_VAR:
-      return {
-        "InvalidAssignment",
-        "无效赋值语句"
-      };
   }
 }
 

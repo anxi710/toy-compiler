@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cassert>
 #include <unordered_map>
 
+#include "panic.hpp"
 #include "token_type.hpp"
 
 namespace lex {
@@ -42,7 +42,10 @@ public:
    * @return keyword token type
    */
   TokenType getKeyword(const std::string &v) const {
-    assert(keywords.contains(v));
+    ASSERT_MSG(
+      keywords.contains(v),
+      "Param isn't a keyword."
+    );
     return keywords.find(v)->second;
   }
 

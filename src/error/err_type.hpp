@@ -40,10 +40,7 @@ enum class SemErrType : std::uint8_t {
   ARG_CNT_MISMATCH,      // 参数数量不匹配
   ARG_TYPE_MISMATCH,     // 参数类型不匹配
   MISSING_ELSE,          // 缺少 else 分支
-
   UNINITIALIZED_VAR,     // 变量未初始化
-  ASSIGN_NOT_VAR,        // 赋值左侧非变量
-  ASSIGN_UNDECLARED_VAR, // 赋值给未声明变量
 };
 
 struct Err {

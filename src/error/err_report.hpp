@@ -1,5 +1,6 @@
 #pragma once
 
+#include <print>
 #include <vector>
 
 #include "position.hpp"
@@ -34,4 +35,18 @@ private:
   std::vector<ErrPtr>      errs; // 错误列表
 };
 
-} // namespace error
+/**
+ * @brief 打印收集到的错误后终止程序
+ */
+[[noreturn]] inline void
+terminate(err::ErrReporter &reporter) {
+  if (reporter.hasErrs()) {
+    reporter.displayErrs();
+  }
+
+  std::println(stderr, "");
+  std::println(stderr, "程序出错，终止运行！");
+  exit(1);
+}
+
+} // namespace err

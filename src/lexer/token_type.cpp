@@ -56,7 +56,7 @@ tokenType2str(TokenType type)
     case TokenType::ARROW:     return "ARROW";
   } // end of switch
 
-  util::unreachable("lex::tokenType2str()");
+  UNREACHABLE("lex::tokenType2str()");
 }
 
 } // namespace lex

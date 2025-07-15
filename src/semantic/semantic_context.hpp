@@ -2,6 +2,7 @@
 
 #include <ranges>
 #include <vector>
+#include <variant>
 
 #include "position.hpp"
 #include "type_factory.hpp"
@@ -56,6 +57,18 @@ public:
     scopestack.pop_back();
   }
 
+  auto lookupFunc(const std::string &name) const {
+    return symtab.lookupFunc(name);
+  }
+
+  auto lookupVal(const std::string &name) const {
+     return symtab.lookupVal(name);
+  }
+
+  auto lookupConst(const std::string &name) const {
+    return symtab.lookupConst(name);
+  }
+
   void declareArg(const std::string &name, bool mut,
     type::TypePtr type, util::Position pos) {
     auto arg = std::make_shared<sym::Variable>();
@@ -66,33 +79,56 @@ public:
     arg->init   = true;
     arg->type   = std::move(type);
 
-    symtab.declareVar(name, arg);
+    symtab.declareVal(name, arg);
     curfunc->argv.push_back(arg);
   }
 
-  void declareVar(const std::string &name, bool mut, bool init,
+  void declareVal(const std::string &name, bool mut, bool init,
     type::TypePtr type, util::Position pos) {
-    auto var = std::make_shared<sym::Variable>();
-    var->pos    = pos;
-    var->name   = name;
-    var->mut    = mut;
-    var->formal = false;
-    var->init   = init;
-    var->type   = std::move(type);
+    auto val = std::make_shared<sym::Variable>();
+    val->pos    = pos;
+    val->name   = name;
+    val->mut    = mut;
+    val->init   = init;
+    val->formal = false;
+    val->type   = std::move(type);
 
-    symtab.declareVar(name, var);
+    symtab.declareVal(name, val);
+  }
+
+  [[nodiscard]] sym::ConstantPtr declareConst(std::variant<int, bool> val, util::Position pos) {
+    std::string name;
+    type::TypePtr type;
+    if (std::holds_alternative<int>(val)) {
+      name = std::to_string(std::get<int>(val));
+      type = type::TypeFactory::INT_TYPE;
+    } else if (std::holds_alternative<bool>(val)) {
+      if (std::get<bool>(val)) {
+        name = "true";
+      } else {
+        name = "false";
+      }
+      type = type::TypeFactory::BOOL_TYPE;
+    }
+
+    if (auto opt_const = lookupConst(name); opt_const.has_value()) {
+      return opt_const.value();
+    }
+
+    auto constant = std::make_shared<sym::Constant>();
+    constant->pos = pos;
+    constant->mut = false;
+    constant->init = true;
+    constant->name = name;
+    constant->type = type;
+
+    symtab.declareConst(name, constant);
+
+    return constant;
   }
 
   void setRetValType(type::TypePtr type) {
     curfunc->type = std::move(type);
-  }
-
-  auto lookupVar(const std::string &name) const {
-     return symtab.lookupVar(name);
-  }
-
-  auto lookupFunc(const std::string &name) const {
-    return symtab.lookupFunc(name);
   }
 
   bool inLoopCtx() {
@@ -107,7 +143,7 @@ public:
     return false;
   }
 
-  auto checkAutoTypeInfer() {
+  auto checkAutoTypeInfer() const {
     return symtab.checkAutoTypeInfer();
   }
 
@@ -137,9 +173,6 @@ public:
   };
   Scope loopctx;
   std::vector<Scope> scopestack;
-
-  // 特殊语句上下文
-
 };
 
 } // namespace sem

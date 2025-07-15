@@ -98,13 +98,13 @@ AssignElem::accept(NodeVisitor &visitor)
 }
 
 void
-ArrayAccess::accept(NodeVisitor &visitor)
+ArrAcc::accept(NodeVisitor &visitor)
 {
   visitor.visit(*this);
 }
 
 void
-TupleAccess::accept(NodeVisitor &visitor)
+TupAcc::accept(NodeVisitor &visitor)
 {
   visitor.visit(*this);
 }
@@ -116,13 +116,13 @@ Number::accept(NodeVisitor &visitor)
 }
 
 void
-ArrayElems::accept(NodeVisitor &visitor)
+ArrElems::accept(NodeVisitor &visitor)
 {
   visitor.visit(*this);
 }
 
 void
-TupleElems::accept(NodeVisitor &visitor)
+TupElems::accept(NodeVisitor &visitor)
 {
   visitor.visit(*this);
 }

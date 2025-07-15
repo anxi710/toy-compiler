@@ -32,12 +32,12 @@ public:
   void build(ast::AssignElem &aelem);
   void build(ast::AssignExpr &aexpr);
   void build(ast::Variable &var);
-  void build(ast::ArrayAccess &aacc);
-  void build(ast::TupleAccess &tacc);
+  void build(ast::ArrAcc &aacc);
+  void build(ast::TupAcc &tacc);
   void build(ast::CmpExpr &cexpr);
   void build(ast::AriExpr &aexpr);
-  void build(ast::ArrayElems &aelems);
-  void build(ast::TupleElems &telems);
+  void build(ast::ArrElems &aelems);
+  void build(ast::TupElems &telems);
   void build(ast::BracketExpr &bexpr);
   void build(ast::Number &num);
   void build(ast::CallExpr &cexpr);

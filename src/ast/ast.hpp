@@ -2,7 +2,9 @@
 
 #include <vector>
 
+#include "symbol.hpp"
 #include "ir_quad.hpp"
+#include "position.hpp"
 #include "type_factory.hpp"
 
 namespace ast {
@@ -42,7 +44,7 @@ struct Type : Node {
   type::TypePtr type;
 
   Type() : type(type::TypeFactory::UNKNOWN_TYPE) {}
-  Type(type::TypePtr t) : type(std::move(t)) {}
+  explicit Type(type::TypePtr t) : type(std::move(t)) {}
   ~Type() override = default;
   void accept(NodeVisitor &visitor) override;
 
@@ -138,11 +140,12 @@ using VarDeclStmtPtr = std::shared_ptr<VarDeclStmt>;
 
 // Expression
 struct Expr : virtual Node {
-  ir::IRValue irval; // 表达式计算结果存储位置
+  sym::ValuePtr symbol; // 表达式计算结果存储位置
 
   bool res_mut; // 表达式计算结果是否可变
   bool used_as_stmt;
   bool is_ctlflow = false;
+  bool is_var = false; // 是否是一个变量
   Type type; // value type
 
   ~Expr() override = default;
@@ -248,6 +251,12 @@ using VariablePtr = std::shared_ptr<Variable>;
 
 // Assign Element
 struct AssignElem : Expr {
+  enum class Kind : std::uint8_t {
+    VARIABLE,
+    ARRACC,
+    TUPACC
+  } kind;
+
   ExprPtr value;
 
   AssignElem(ExprPtr value) : value(std::move(value)) {}
@@ -257,26 +266,26 @@ struct AssignElem : Expr {
 using AssignElemPtr = std::shared_ptr<AssignElem>;
 
 // 数组访问
-struct ArrayAccess : AssignElem {
+struct ArrAcc : AssignElem {
   ExprPtr idx; // 索引值
 
-  ArrayAccess(ExprPtr value, ExprPtr idx)
+  ArrAcc(ExprPtr value, ExprPtr idx)
     : AssignElem(std::move(value)), idx(std::move(idx)) {}
-  ~ArrayAccess() override = default;
+  ~ArrAcc() override = default;
   void accept(NodeVisitor& visitor) override;
 };
-using ArrayAccessPtr = std::shared_ptr<ArrayAccess>;
+using ArrAccPtr = std::shared_ptr<ArrAcc>;
 
 // 元组访问
-struct TupleAccess : AssignElem {
+struct TupAcc : AssignElem {
   int idx; // 索引值
 
-  TupleAccess(ExprPtr value, int idx)
+  TupAcc(ExprPtr value, int idx)
     : AssignElem(std::move(value)), idx(idx) {}
-  ~TupleAccess() override = default;
+  ~TupAcc() override = default;
   void accept(NodeVisitor& visitor) override;
 };
-using TupleAccessPtr = std::shared_ptr<TupleAccess>;
+using TupAccPtr = std::shared_ptr<TupAcc>;
 
 // Expression Statement
 struct ExprStmt : Stmt {
@@ -324,26 +333,26 @@ struct BracketExpr : Expr {
 using BracketExprPtr = std::shared_ptr<BracketExpr>;
 
 // Array Elements => e.g., [1, 2, 3]
-struct ArrayElems : Expr {
+struct ArrElems : Expr {
   std::vector<ExprPtr> elems;
 
-  ArrayElems(std::vector<ExprPtr> elems)
+  ArrElems(std::vector<ExprPtr> elems)
     : elems(std::move(elems)) {}
-  ~ArrayElems() override = default;
+  ~ArrElems() override = default;
   void accept(NodeVisitor& visitor) override;
 };
-using ArrayElemsPtr = std::shared_ptr<ArrayElems>;
+using ArrElemsPtr = std::shared_ptr<ArrElems>;
 
 // Tuple Elements => e.g. (1, 2)
-struct TupleElems : Expr {
+struct TupElems : Expr {
   std::vector<ExprPtr> elems;
 
-  TupleElems(std::vector<ExprPtr> elems)
+  TupElems(std::vector<ExprPtr> elems)
     : elems(std::move(elems)) {}
-  ~TupleElems() override = default;
+  ~TupElems() override = default;
   void accept(NodeVisitor& visitor) override;
 };
-using TupleElemsPtr = std::shared_ptr<TupleElems>;
+using TupElemsPtr = std::shared_ptr<TupElems>;
 
 // Assign Expression
 struct AssignExpr : Expr {

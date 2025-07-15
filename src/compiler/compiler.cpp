@@ -14,7 +14,7 @@ Compiler::Compiler(const std::string &file)
   std::ifstream in;
   in.open(file);
   if (!in) {
-    util::runtime_error("无法打开输入文件");
+    UNREACHABLE("无法打开输入文件");
   }
 
   std::ostringstream oss;
@@ -33,7 +33,7 @@ Compiler::Compiler(const std::string &file)
   }
 
   if (!iss.eof()) {
-    util::runtime_error("编译器初始化时，文件读取错误");
+    UNREACHABLE("编译器初始化时，文件读取错误");
   }
 
   // 初始化各组件
@@ -56,7 +56,7 @@ Compiler::generateIR(const std::string &file)
   std::ofstream out;
   out.open(filename);
   if (!out) {
-    util::runtime_error("无法打开输出文件（.ir）");
+    UNREACHABLE("无法打开输出文件（.ir）");
   }
 
   // 一遍扫描、语法制导地生成中间代码

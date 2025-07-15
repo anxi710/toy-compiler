@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <vector>
-#include <cassert>
 #include <sstream>
 
 #include "panic.hpp"
@@ -38,6 +37,7 @@ struct Type {
 
   Type(TypeKind kind) : kind(kind) {}
   virtual ~Type() = default;
+
   [[nodiscard]] virtual std::string str() const = 0;
   virtual TypePtr getElemType(int idx = 0) = 0;
   virtual int size() = 0;
@@ -49,12 +49,13 @@ struct AnyType : Type {
     iterable = false;
   }
   ~AnyType() override = default;
+
   [[nodiscard]] std::string str() const override { return "any"; }
   TypePtr getElemType(int idx = 0) override {
-    util::unreachable("AnyType::getElemType()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
   int size() override {
-    util::unreachable("AnyType::size()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
 };
 using AnyTypePtr = std::shared_ptr<AnyType>;
@@ -65,12 +66,13 @@ struct UnknownType : Type {
     iterable = false;
   }
   ~UnknownType() override = default;
+
   [[nodiscard]] std::string str() const override { return "unknown"; }
   TypePtr getElemType(int idx = 0) override {
-    util::unreachable("UnknownType::getElemType()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
   int size() override {
-    util::unreachable("UnknownType::size()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
 };
 using UnknownTypePtr = std::shared_ptr<UnknownType>;
@@ -81,12 +83,13 @@ struct UnitType : Type {
     iterable = false;
   }
   ~UnitType() override = default;
+
   [[nodiscard]] std::string str() const override { return "()"; }
   TypePtr getElemType(int idx = 0) override {
-    util::unreachable("UnitType::getElemType()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
   int size() override {
-    util::unreachable("UnitType::size()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
 };
 using UnitTypePtr = std::shared_ptr<UnitType>;
@@ -98,12 +101,13 @@ struct IntType : Type {
     iterable = false;
   }
   ~IntType() override = default;
+
   [[nodiscard]] std::string str() const override { return "i32"; }
   TypePtr getElemType(int idx = 0) override {
-    util::unreachable("IntType::getElemType()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
   int size() override {
-    util::unreachable("IntType::size()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
 };
 using IntTypePtr = std::shared_ptr<IntType>;
@@ -114,46 +118,47 @@ struct BoolType : Type {
     iterable = false;
   }
   ~BoolType() override = default;
+
   [[nodiscard]] std::string str() const override { return "bool"; }
   TypePtr getElemType(int idx = 0) override {
-    util::unreachable("BoolType::getElemType()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
   int size() override {
-    util::unreachable("BoolType::size()");
+    UNREACHABLE("Shouldn't call this funtion!");
   }
 };
 using BoolTypePtr = std::shared_ptr<BoolType>;
 
 struct ArrayType : Type {
-  int     size_;
+  int     m_size;
   TypePtr etype;
 
   ArrayType(int size, TypePtr type) : Type(TypeKind::ARRAY),
-    size_(size), etype(std::move(type))
+    m_size(size), etype(std::move(type))
   {
-    memory = size_ * (etype->memory);
+    memory = m_size * (etype->memory);
     iterable = true;
   }
   ~ArrayType() override = default;
 
   [[nodiscard]] std::string str() const override {
-    return std::format("[{}; {}]", etype->str(), size_);
+    return std::format("[{}; {}]", etype->str(), m_size);
   }
   TypePtr getElemType(int idx = 0) override {
     return etype;
   }
   int size() override {
-    return size_;
+    return m_size;
   }
 };
 using ArrayTypePtr = std::shared_ptr<ArrayType>;
 
 struct TupleType : Type {
-  int                  size_;
+  int                  m_size;
   std::vector<TypePtr> etypes;
 
   TupleType(std::vector<TypePtr> types)
-    : Type(TypeKind::TUPLE), size_(types.size()),
+    : Type(TypeKind::TUPLE), m_size(types.size()),
       etypes(std::move(types))
   {
     memory = 0;
@@ -177,11 +182,14 @@ struct TupleType : Type {
     return oss.str();
   }
   TypePtr getElemType(int idx = 0) override {
-    assert(idx >= 0 && idx < size_);
+    ASSERT_MSG(
+      idx >= 0 && idx < m_size,
+      "out of bounds access!"
+    );
     return etypes[idx];
   }
   int size() override {
-    return size_;
+    return m_size;
   }
 };
 using TupleTypePtr = std::shared_ptr<TupleType>;
