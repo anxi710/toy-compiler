@@ -4,9 +4,15 @@ CXXFLAGS := -fno-rtti -Wall -Wno-register -std=c++23
 # Debug flags
 DEBUG ?= 1
 ifeq ($(DEBUG), 0)
-CXXFLAGS += -O2
+CXXFLAGS += -O2 -DDEBUG
 else
-CXXFLAGS += -g -O0
+CXXFLAGS += -g -O0 -DDEBUG
+endif
+
+# Assemble Debug
+VERBOSE ?= 0
+ifeq ($(VERBOSE), 1)
+CXXFLAGS += -DVERBOSE
 endif
 
 # Compilers
@@ -41,22 +47,19 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 .PHONY: clean
 
 all:
-	make -j
+	@make -j
+
+verbose:
+	@VERBOSE=1 make all
 
 bear:
 	@make clean
-	bear -- make -j
+	@bear -- make -j
 
 clean:
 	-rm -rf $(BUILD_DIR) *.ir *.code
 
 clean-all:
 	-rm -rf $(BUILD_DIR) compile_commands.json *.ir *.code
-
-qemu:
-
-qemu-gdb:
-
-elf:
 
 -include $(DEPS)
