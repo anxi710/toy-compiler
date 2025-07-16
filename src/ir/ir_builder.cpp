@@ -8,14 +8,15 @@ namespace ir {
 static std::vector<IRQuadPtr>
 concat(const std::vector<std::vector<IRQuadPtr>> &codes)
 {
-  std::size_t size = 0;
-  for (const auto &code : codes) {
-    size += code.size();
-  }
+  auto size = std::ranges::fold_left_first(
+    codes | std::views::transform([](const auto &code) {
+      return code.size();
+    }),
+    std::plus{}
+  ).value_or(0);
 
   std::vector<IRQuadPtr> res;
   res.reserve(size);
-
   for (const auto &code : codes) {
     res.insert(res.end(), code.begin(), code.end());
   }
@@ -26,15 +27,16 @@ concat(const std::vector<std::vector<IRQuadPtr>> &codes)
 static std::vector<IRQuadPtr>
 concat(std::vector<std::vector<IRQuadPtr>> &&codes)
 {
-  std::size_t size = 0;
-  for (const auto &code : codes) {
-    size += code.size();
-  }
+  auto size = std::ranges::fold_left_first(
+    codes | std::views::transform([](const auto &code) {
+      return code.size();
+    }),
+    std::plus{}
+  ).value_or(0);
 
   std::vector<IRQuadPtr> res;
   res.reserve(size);
-
-  for (const auto &code : codes) {
+  for (auto &code : codes) {
     res.insert(
       res.end(),
       std::make_move_iterator(code.begin()),
@@ -52,7 +54,7 @@ IRBuilder::visit(ast::Prog &prog)
     | std::views::transform([](const auto &decl) {
         return decl->ircode;
       })
-    | std::ranges::to<std::vector<std::vector<IRQuadPtr>>>();
+    | std::ranges::to<std::vector>();
 
   prog.ircode = concat(std::move(codes));
 }
@@ -83,7 +85,7 @@ IRBuilder::visit(ast::StmtBlockExpr &sbexpr)
     | std::views::transform([](const auto &stmt) {
         return stmt->ircode;
       })
-    | std::ranges::to<std::vector<std::vector<IRQuadPtr>>>();
+    | std::ranges::to<std::vector>();
 
   sbexpr.ircode = concat(std::move(codes));
 }

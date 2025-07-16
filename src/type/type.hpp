@@ -4,6 +4,7 @@
 #include <ranges>
 #include <vector>
 #include <sstream>
+#include <algorithm>
 
 #include "panic.hpp"
 
@@ -11,11 +12,8 @@ namespace type {
 
 // 类型种类
 enum class TypeKind : std::uint8_t {
-  I32,
-  BOOL,
-  UNIT,
-  ARRAY,
-  TUPLE,
+  I32, BOOL, UNIT, // 基础类型
+  ARRAY, TUPLE,    // 复合类型
   UNKNOWN,
   ANY // 通用类型，用于匹配任意类型
 };
@@ -40,8 +38,12 @@ struct Type {
   virtual ~Type() = default;
 
   [[nodiscard]] virtual std::string str() const = 0;
-  virtual TypePtr getElemType(int idx = 0) = 0;
-  virtual int size() = 0;
+  virtual TypePtr getElemType(int idx = 0)  {
+    UNREACHABLE("Shouldn't call this function!");
+  }
+  virtual int size() {
+    UNREACHABLE("Shouldn't call this function!");
+  }
 };
 
 struct AnyType : Type {
@@ -52,12 +54,6 @@ struct AnyType : Type {
   ~AnyType() override = default;
 
   [[nodiscard]] std::string str() const override { return "any"; }
-  TypePtr getElemType(int idx = 0) override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
-  int size() override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
 };
 using AnyTypePtr = std::shared_ptr<AnyType>;
 
@@ -69,12 +65,6 @@ struct UnknownType : Type {
   ~UnknownType() override = default;
 
   [[nodiscard]] std::string str() const override { return "unknown"; }
-  TypePtr getElemType(int idx = 0) override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
-  int size() override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
 };
 using UnknownTypePtr = std::shared_ptr<UnknownType>;
 
@@ -86,12 +76,6 @@ struct UnitType : Type {
   ~UnitType() override = default;
 
   [[nodiscard]] std::string str() const override { return "()"; }
-  TypePtr getElemType(int idx = 0) override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
-  int size() override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
 };
 using UnitTypePtr = std::shared_ptr<UnitType>;
 
@@ -104,12 +88,6 @@ struct IntType : Type {
   ~IntType() override = default;
 
   [[nodiscard]] std::string str() const override { return "i32"; }
-  TypePtr getElemType(int idx = 0) override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
-  int size() override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
 };
 using IntTypePtr = std::shared_ptr<IntType>;
 
@@ -121,12 +99,6 @@ struct BoolType : Type {
   ~BoolType() override = default;
 
   [[nodiscard]] std::string str() const override { return "bool"; }
-  TypePtr getElemType(int idx = 0) override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
-  int size() override {
-    UNREACHABLE("Shouldn't call this funtion!");
-  }
 };
 using BoolTypePtr = std::shared_ptr<BoolType>;
 
@@ -145,12 +117,8 @@ struct ArrayType : Type {
   [[nodiscard]] std::string str() const override {
     return std::format("[{}; {}]", etype->str(), m_size);
   }
-  TypePtr getElemType(int idx = 0) override {
-    return etype;
-  }
-  int size() override {
-    return m_size;
-  }
+  TypePtr getElemType(int idx = 0) override { return etype; }
+  int size() override { return m_size; }
 };
 using ArrayTypePtr = std::shared_ptr<ArrayType>;
 
@@ -158,43 +126,37 @@ struct TupleType : Type {
   int                  m_size;
   std::vector<TypePtr> etypes;
 
-  TupleType(std::vector<TypePtr> types)
-    : Type(TypeKind::TUPLE), m_size(types.size()),
-      etypes(std::move(types))
+  TupleType(std::vector<TypePtr> types) : Type(TypeKind::TUPLE),
+    m_size(types.size()), etypes(std::move(types))
   {
-    memory = 0;
-    for (const auto &etype : etypes) {
-      memory += etype->memory;
-    }
+    memory = std::ranges::fold_left_first(
+      etypes | std::views::transform([](const auto &type) {
+        return type->memory;
+      }),          // lazy evaluated 生成 Range
+      std::plus{}  // 折叠操作函数，std::plus{} 是一个标准函数对象！
+    ).value_or(0); // fold_left_first 返回的是一个 optional, 因为 etypes 可能为空
+                   // 如果使用的是 fold_left 并指定了 accumulator 初始累积值，则不需要 optional
     iterable = false;
   }
   ~TupleType() override = default;
 
   [[nodiscard]] std::string str() const override {
-    std::ostringstream oss;
-    oss << "(";
-    for (const auto &[idx, etype] : std::views::enumerate(etypes)) {
-      oss << etype->str();
-      if (idx < etypes.size() - 1) {
-        oss << ", ";
-      }
-    }
-    if (etypes.size() == 1) {
-      oss << ",";
-    }
-    oss << ")";
-    return oss.str();
+    ASSERT_MSG(etypes.size() > 0, "Tuple elements <= 0!");
+
+    auto inner = etypes
+      | std::views::transform([](const auto &type) {
+          return type->str();
+        })
+      | std::views::join_with(std::string_view{", "}) // join_with 是在两个元素之间插入分隔符！
+      | std::ranges::to<std::string>();
+
+    return "(" + inner + (etypes.size() == 1 ? "," : "") + ")";
   }
   TypePtr getElemType(int idx = 0) override {
-    ASSERT_MSG(
-      idx >= 0 && idx < m_size,
-      "out of bounds access!"
-    );
+    ASSERT_MSG(idx >= 0 && idx < m_size, "out of bounds access!");
     return etypes[idx];
   }
-  int size() override {
-    return m_size;
-  }
+  int size() override { return m_size; }
 };
 using TupleTypePtr = std::shared_ptr<TupleType>;
 
