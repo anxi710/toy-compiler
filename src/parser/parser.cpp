@@ -506,7 +506,9 @@ Parser::parseExpr()
     expr = parseLoopExpr();
   }else if (check(TokenType::LBRACE)) {
     // StmtBlocKExpr -> { (Stmt)* }
+    builder.ctx->enterBlockExpr();
     expr = parseStmtBlockExpr();
+    builder.ctx->exitScope();
   } else if (check(TokenType::ID)) {
     if (checkAhead(TokenType::LPAREN)) {
       expr = parseCallExpr();
@@ -587,7 +589,7 @@ Parser::parseBreakExpr()
   consume(TokenType::BREAK, "Expect 'break'");
 
   std::optional<ast::ExprPtr> value = std::nullopt;
-  if (!check(TokenType::SEMICOLON)) {
+  if (!check(TokenType::RBRACE) && !check(TokenType::SEMICOLON)) {
     value = parseExpr();
   }
 
@@ -1243,7 +1245,7 @@ Parser::parseWhileLoopExpr()
     std::vector<ast::StmtPtr> stmts{};
     body = std::make_shared<ast::StmtBlockExpr>(stmts);
   } else {
-    builder.ctx->enterIf();
+    builder.ctx->enterWhile();
     body = parseStmtBlockExpr();
     builder.ctx->exitScope();
   }
@@ -1265,12 +1267,6 @@ Parser::parseForLoopExpr()
 
   auto [mut, name, varpos] = parseInnerVarDecl();
 
-  // 这里简单的将迭代器的类型认为是 i32
-  // 实际类型应该由可迭代对象的元素的类型确定
-  builder.ctx->declareVal(
-    name, mut, true, type::TypeFactory::INT_TYPE, varpos
-  );
-
   consume(TokenType::IN, "Expect 'in'");
 
   ast::ExprPtr iter = parseIterable();
@@ -1282,7 +1278,14 @@ Parser::parseForLoopExpr()
     std::vector<ast::StmtPtr> stmts{};
     body = std::make_shared<ast::StmtBlockExpr>(stmts);
   } else {
-    builder.ctx->enterIf();
+    builder.ctx->enterFor();
+
+    // 这里简单的将迭代器的类型认为是 i32
+    // 实际类型应该由可迭代对象的元素的类型确定
+    builder.ctx->declareVal(
+      name, mut, true, type::TypeFactory::INT_TYPE, varpos
+    );
+
     body = parseStmtBlockExpr();
     builder.ctx->exitScope();
   }

@@ -1,7 +1,6 @@
 #include <print>
 #include <cassert>
 #include <sstream>
-#include <iomanip>
 #include <iostream>
 
 #include "err_report.hpp"
@@ -32,7 +31,7 @@ ErrReporter::displayUnknownType(const LexErr &err) const
     << std::endl;
 
   std::ostringstream oss;
-  oss << std::left << std::setw(3) << err.pos.row + 1;
+  oss << std::format("{:<3}", err.pos.row + 1);
 
   std::cerr << BLUE << "   |  " << std::endl
     << BLUE << oss.str() << "| " << RESET
@@ -76,7 +75,7 @@ ErrReporter::displayUnexpectedToken(const ParErr &err) const
     << std::endl;
 
   std::ostringstream oss;
-  oss << std::left << std::setw(3) << err.pos.row + 1;
+  oss << std::format("{:<3}", err.pos.row + 1);
 
   std::cerr << BLUE << "   |  " << std::endl
     << BLUE << oss.str() << "| " << RESET
@@ -231,7 +230,7 @@ ErrReporter::displaySemErr(const SemErr &err) const
     ) << std::endl;
 
   std::ostringstream oss;
-  oss << std::left << std::setw(3) << err.pos.row + 1;
+  oss << std::format("{:<3}", err.pos.row + 1);
 
   std::cerr << BLUE << "   |  " << std::endl
     << BLUE << oss.str() << "| " << RESET

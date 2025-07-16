@@ -62,6 +62,15 @@ Compiler::generateIR(const std::string &file)
   // 一遍扫描、语法制导地生成中间代码
   ast_root = parser->parseProgram();
 
+#ifdef DEBUG
+  std::ofstream out_sym;
+  out_sym.open("symbol.txt");
+  if (!out_sym) {
+    UNREACHABLE("无法打开输出文件（symbol.txt）");
+  }
+  symtab->dump(out_sym);
+#endif
+
   // 如果扫描过程中发现了错误，则打印错误并退出
   if (reporter->hasErrs()) {
     reporter->displayErrs();
@@ -76,4 +85,3 @@ Compiler::generateIR(const std::string &file)
 }
 
 } // namespace cpr
-

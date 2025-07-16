@@ -1,5 +1,6 @@
 #include <print>
 #include <regex>
+#include <ranges>
 #include <cassert>
 #include <fstream>
 
@@ -79,11 +80,11 @@ SymbolTable::declareVal(const std::string &vname, ValuePtr val)
 void
 SymbolTable::declareConst(const std::string &cname, ConstantPtr con)
 {
-  if (constval.contains(cname)) {
+  if (constvals.contains(cname)) {
     UNREACHABLE("const value already exists");
   }
 
-  constval[cname] = std::move(con);
+  constvals[cname] = std::move(con);
 }
 
 /**
@@ -136,8 +137,8 @@ SymbolTable::lookupVal(const std::string &name) const
 std::optional<ConstantPtr>
 SymbolTable::lookupConst(const std::string &name) const
 {
-  if (constval.contains(name)) {
-    return constval.find(name)->second;
+  if (constvals.contains(name)) {
+    return constvals.find(name)->second;
   } else {
     return std::nullopt;
   }
@@ -191,27 +192,62 @@ SymbolTable::checkAutoTypeInfer() const
 void
 SymbolTable::dump(std::ofstream &out)
 {
-  std::println(out, "搜集到如下函数符号：");
+  std::println(out, "=============== Symbol Table ===============\n");
+  std::println(out, "Function:");
+  std::println(out, "{}", std::string(44, '-'));
 
   for (const auto &func : funcs) {
-    std::println(out,
-      "函数名：{}，参数个数：{}，返回值类型：",
-      func.first, func.second->argv.size(), func.second->type->str()
-    );
+    std::println(out, "  function name: {}", func.first);
+    std::println(out, "  argc: {}", func.second->argv.size());
+    if (func.second->argv.size() > 0) {
+      std::println(out, "  argv:");
+      for (const auto &[idx, arg] : std::views::enumerate(func.second->argv)) {
+        std::println(
+          out,
+          "    {}. name: {}, mutable: {}, type: {}",
+          idx + 1,
+          arg->name,
+          arg->mut ? "true" : "false",
+          arg->type->str()
+        );
+      }
+    }
+    std::println(out, "  return type: {}", func.second->type->str());
+    std::println(out, "{}", std::string(44, '-'));
   }
 
-  std::println(out, "搜集到如下变量符号：");
+  std::println(out, "\nLocal Variable:");
 
   for (const auto &scope : scopes) {
-    auto scope_name = scope.first;
+    if (scope.first == "global") {
+      continue;
+    }
+
+    std::string str = "global::";
+    auto scopename = scope.first.substr(str.length());
     auto p_scope = scope.second;
 
-    for (const auto &var : *p_scope) {
-      std::println(out,
-        "变量名：{}::{}，类型：{}",
-        scope_name, var.first, var.second->type->str()
-      );
+    int cnt = 0;
+    for (const auto &val : *p_scope) {
+      if (val.second->kind == Value::Kind::LOCAL) {
+        auto var = std::static_pointer_cast<Variable>(val.second);
+        if (!var->formal) {
+          std::println(out,
+            " {:>2}. name: {}, mutable: {}, type: {}",
+            ++cnt,
+            std::format("{}::{}", scopename, var->name),
+            var->mut ? "true" : "false",
+            var->type->str()
+          );
+        }
+      }
     }
+  }
+
+  std::println(out, "\nConstant:");
+
+  for (const auto &[idx, constval] : std::views::enumerate(constvals)) {
+    std::println(out, "{:>3}. {}", idx + 1, constval.first);
   }
 }
 

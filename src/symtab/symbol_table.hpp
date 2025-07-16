@@ -42,7 +42,7 @@ private:
   std::string curname;  // 作用域限定符
 
   std::unordered_map<std::string, ScopePtr>    scopes; // TempVal && LocalVal
-  std::unordered_map<std::string, ConstantPtr> constval;
+  std::unordered_map<std::string, ConstantPtr> constvals;
   std::unordered_map<std::string, FunctionPtr> funcs;
 };
 

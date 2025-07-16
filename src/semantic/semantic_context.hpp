@@ -12,6 +12,29 @@ namespace sem {
 
 class SemanticContext {
 public:
+  sym::SymbolTable  &symtab;
+  type::TypeFactory  types;
+
+  // 当前函数上下文
+  sym::FunctionPtr curfunc;
+  int scopenum; // 函数内部子作用域个数
+
+  // 作用域上下文
+  struct Scope {
+    enum class Kind : std::uint8_t {
+      FUNC,
+      BLOCKEXPR,
+      IF,
+      LOOP,
+      FOR,
+      WHILE,
+    } kind;
+    std::string name;
+  };
+  Scope loopctx;
+  std::vector<Scope> scopestack;
+
+public:
   SemanticContext(sym::SymbolTable &symtab) : symtab(symtab) {}
 
 public:
@@ -26,6 +49,12 @@ public:
     symtab.enterScope(name, true);
     scopenum = 0;
     scopestack.emplace_back(Scope::Kind::FUNC, name);
+  }
+
+  void enterBlockExpr() {
+    const std::string &name = std::format("L{}", ++scopenum);
+    symtab.enterScope(name, true);
+    scopestack.emplace_back(Scope::Kind::BLOCKEXPR, name);
   }
 
   void enterIf() {
@@ -131,6 +160,14 @@ public:
     curfunc->type = std::move(type);
   }
 
+  // void setVarType(const std::string &name, type::TypePtr type) {
+  //   auto opt_var = symtab.lookupVal(name);
+  //   ASSERT_MSG(
+  //     opt_var.has_value(),
+  //     "variable must be declared"
+  //   );
+  // }
+
   bool inLoopCtx() {
     for (const auto &scope : std::views::reverse(scopestack)) {
       if (scope.kind == Scope::Kind::LOOP ||
@@ -143,6 +180,17 @@ public:
     return false;
   }
 
+  std::optional<Scope> getLoopCtx() {
+    for (const auto &scope : std::views::reverse(scopestack)) {
+      if (scope.kind == Scope::Kind::LOOP ||
+          scope.kind == Scope::Kind::WHILE ||
+          scope.kind == Scope::Kind::FOR) {
+        return scope;
+      }
+    }
+    return std::nullopt;
+  }
+
   auto checkAutoTypeInfer() const {
     return symtab.checkAutoTypeInfer();
   }
@@ -151,28 +199,6 @@ public:
     std::string str = "global::";
     return symtab.getCurScopeName().substr(str.length());
   }
-
-public:
-  sym::SymbolTable  &symtab;
-  type::TypeFactory  types;
-
-  // 当前函数上下文
-  sym::FunctionPtr curfunc;
-  int scopenum; // 函数内部子作用域个数
-
-  // 作用域上下文
-  struct Scope {
-    enum class Kind : std::uint8_t {
-      FUNC,
-      IF,
-      LOOP,
-      FOR,
-      WHILE,
-    } kind;
-    std::string name;
-  };
-  Scope loopctx;
-  std::vector<Scope> scopestack;
 };
 
 } // namespace sem

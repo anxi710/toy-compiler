@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <ranges>
 #include <vector>
 #include <sstream>
 
@@ -172,11 +173,14 @@ struct TupleType : Type {
   [[nodiscard]] std::string str() const override {
     std::ostringstream oss;
     oss << "(";
-    for (auto iter = etypes.cbegin(); iter != etypes.end(); ++iter) {
-      oss << (*iter)->str();
-      if (std::next(iter) != etypes.end()) {
+    for (const auto &[idx, etype] : std::views::enumerate(etypes)) {
+      oss << etype->str();
+      if (idx < etypes.size() - 1) {
         oss << ", ";
       }
+    }
+    if (etypes.size() == 1) {
+      oss << ",";
     }
     oss << ")";
     return oss.str();

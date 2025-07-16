@@ -133,7 +133,7 @@ SemanticChecker::visit(ast::EmptyStmt &estmt)
 void
 SemanticChecker::visit(ast::VarDeclStmt &vdstmt)
 {
-  if (vdstmt.vartype != ast::Type{type::TypeFactory::UNKNOWN_TYPE}) {
+  if (vdstmt.vartype.type != type::TypeFactory::UNKNOWN_TYPE) {
     // let (mut)? <ID> : Type ;
     if (vdstmt.value.has_value() &&
         vdstmt.vartype != vdstmt.value.value()->type
@@ -262,12 +262,20 @@ SemanticChecker::visit(ast::RetExpr &rexpr)
 void
 SemanticChecker::visit(ast::BreakExpr &bexpr)
 {
+  // break 表达式认为其使用的是副作用
+  // 因此设置其类型为 unit type
+  // 而非 break 返回的表达式的类型！！！
+  bexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
+  bexpr.res_mut = false;
+
   if (bexpr.value.has_value()) {
     if (auto value = bexpr.value.value(); value->is_var) {
       checkInit(*value); // 检查该变量是否已经初始化
     }
 
-    if (ctx.loopctx.kind != SemanticContext::Scope::Kind::LOOP) {
+    if (auto loopctx = ctx.getLoopCtx();
+      loopctx.has_value()
+    && loopctx.value().kind != SemanticContext::Scope::Kind::LOOP) {
       // break Expr
       reporter.report(
         err::SemErrType::BREAK_CTX_ERROR,
@@ -275,6 +283,7 @@ SemanticChecker::visit(ast::BreakExpr &bexpr)
         bexpr.pos,
         ctx.getCurScopeName()
       );
+      return;
     }
   }
 
@@ -287,12 +296,6 @@ SemanticChecker::visit(ast::BreakExpr &bexpr)
       ctx.getCurScopeName()
     );
   }
-
-  // break 表达式认为其使用的是副作用
-  // 因此设置其类型为 unit type
-  // 而非 break 返回的表达式的类型！！！
-  bexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
-  bexpr.res_mut = false;
 }
 
 void
@@ -463,10 +466,14 @@ SemanticChecker::visit(ast::AssignExpr &aexpr)
   aexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
 
   if (aexpr.lval->is_var) {
-    // 赋值表达式中并不需要检查变量是否初始化
+    // 赋值表达式中并不需要检查左值变量是否初始化
     // 赋值是给变量初始化的一种手段！
-    if (aexpr.lval->symbol != nullptr) {
-      aexpr.lval->symbol->init = true;
+    if (aexpr.lval->type.type == type::TypeFactory::UNKNOWN_TYPE) {
+      // type inference
+      aexpr.lval->type.type = aexpr.rval->type.type;
+      if (aexpr.lval->symbol != nullptr) {
+        aexpr.lval->symbol->type = aexpr.rval->type.type;
+      }
     }
   }
 
@@ -478,20 +485,42 @@ SemanticChecker::visit(ast::AssignExpr &aexpr)
   // NOTE: res_mut 表示了表达式的计算结果是否可变
   //       这里只有变量及其数组或元组访问是可能可变的
   //       其余表达式的计算记过均是不可变的！
-  if (!aexpr.lval->res_mut) {
-    reporter.report(
-      err::SemErrType::ASSIGN_IMMUTABLE,
-      "赋值表达式的左值不可变",
-      aexpr.lval->pos,
-      ctx.getCurScopeName()
-    );
-    return;
+  if (aexpr.lval->is_var) {
+    if (aexpr.lval->symbol != nullptr) {
+      if (aexpr.lval->symbol->init && !aexpr.lval->symbol->mut) {
+        // 对于 immutable 的变量而言，
+        // 允许未初始化情况下的第一次赋值，将该次赋值视为初始化
+        // 后面的赋值则视为错误！
+        reporter.report(
+          err::SemErrType::ASSIGN_IMMUTABLE,
+          "赋值表达式的左值不可变",
+          aexpr.lval->pos,
+          ctx.getCurScopeName()
+        );
+        return;
+      }
+      aexpr.lval->symbol->init = true;
+    }
+  } else {
+    if (!aexpr.lval->res_mut) {
+      reporter.report(
+        err::SemErrType::ASSIGN_IMMUTABLE,
+        "赋值表达式的左值不可变",
+        aexpr.lval->pos,
+        ctx.getCurScopeName()
+      );
+      return;
+    }
   }
 
   if (aexpr.lval->type != aexpr.rval->type) {
     reporter.report(
       err::SemErrType::ASSIGN_MISMATCH,
-      "赋值表达式的左值和右值类型不匹配",
+      std::format(
+        "左值类型为 {}，右值类型为 {}",
+        aexpr.lval->type.str(),
+        aexpr.rval->type.str()
+      ),
       aexpr.pos,
       ctx.getCurScopeName()
     );
@@ -702,7 +731,7 @@ SemanticChecker::visit(ast::CallExpr &cexpr)
         err::SemErrType::ARG_CNT_MISMATCH,
         std::format(
           "第 {} 个参数形参类型为 {}，但实参类型为 {}",
-          i,
+          i + 1,
           fparam_types[i]->str(),
           aparam_types[i]->str()
         ),

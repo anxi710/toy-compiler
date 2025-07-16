@@ -1,8 +1,12 @@
 fn main(){
+    // let mut a:[i32;3];
+    // let mut b:[&i32;3];
+    // let mut c:[[&i32;3];3];
+    // let mut d:&mut[[i32;3];3];
     let mut a:[i32;3];
-    let mut b:[&i32;3];
-    let mut c:[[&i32;3];3];
-    let mut d:&mut[[i32;3];3];
+    let mut b:[i32;3];
+    let mut c:[[i32;3];3];
+    let mut d:[[i32;3];3];
     a = [1,2,3];
 }
 
