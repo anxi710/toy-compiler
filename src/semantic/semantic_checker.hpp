@@ -1,48 +1,53 @@
 #pragma once
 
 #include "ast.hpp"
-#include "visitor.hpp"
-#include "err_report.hpp"
+#include "crtp_visitor.hpp"
 #include "semantic_context.hpp"
+
+namespace err {
+
+class ErrReporter;
+
+} // namespace err
 
 namespace sem {
 
-class SemanticChecker : public ast::BaseVisitor {
+class SemanticChecker : public ast::CRTPVisitor<SemanticChecker> {
 public:
   SemanticChecker(sem::SemanticContext &ctx, err::ErrReporter &reporter)
     : ctx(ctx), reporter(reporter) {}
   ~SemanticChecker() override = default;
 
 public:
-  void visit(ast::FuncDecl &fdecl) override;
-  void visit(ast::FuncHeaderDecl &fhdecl) override;
-  void visit(ast::Arg &arg) override;
-  void visit(ast::StmtBlockExpr &sbexpr) override;
-  void visit(ast::EmptyStmt &estmt) override;
-  void visit(ast::VarDeclStmt &vdstmt) override;
-  void visit(ast::ExprStmt &estmt) override;
-  void visit(ast::RetExpr &rexpr) override;
-  void visit(ast::BreakExpr &bexpr) override;
-  void visit(ast::ContinueExpr &cexpr) override;
-  void visit(ast::AssignExpr &aexpr) override;
-  void visit(ast::AssignElem &aelem) override;
-  void visit(ast::Variable &var) override;
-  void visit(ast::ArrAcc &aacc) override;
-  void visit(ast::TupAcc &tacc) override;
-  void visit(ast::CmpExpr &cexpr) override;
-  void visit(ast::AriExpr &aexpr) override;
-  void visit(ast::ArrElems &aelems) override;
-  void visit(ast::TupElems &telems) override;
-  void visit(ast::Number &num) override;
-  void visit(ast::BracketExpr &bexpr) override;
-  void visit(ast::CallExpr &cexpr) override;
-  void visit(ast::IfExpr &iexpr) override;
-  void visit(ast::ElseClause &eclause) override;
-  void visit(ast::WhileLoopExpr&wlexpr) override;
-  void visit(ast::ForLoopExpr &flexpr) override;
-  void visit(ast::Interval &interval) override;
-  void visit(ast::IterableVal &iter) override;
-  void visit(ast::LoopExpr &lexpr) override;
+  void visit(ast::FuncDecl &fdecl);
+  void visit(ast::FuncHeaderDecl &fhdecl);
+  void visit(ast::Arg &arg);
+  void visit(ast::StmtBlockExpr &sbexpr);
+  void visit(ast::EmptyStmt &estmt);
+  void visit(ast::VarDeclStmt &vdstmt);
+  void visit(ast::ExprStmt &estmt);
+  void visit(ast::RetExpr &rexpr);
+  void visit(ast::BreakExpr &bexpr);
+  void visit(ast::ContinueExpr &cexpr);
+  void visit(ast::AssignExpr &aexpr);
+  void visit(ast::AssignElem &aelem);
+  void visit(ast::Variable &var);
+  void visit(ast::ArrAcc &aacc);
+  void visit(ast::TupAcc &tacc);
+  void visit(ast::CmpExpr &cexpr);
+  void visit(ast::AriExpr &aexpr);
+  void visit(ast::ArrElems &aelems);
+  void visit(ast::TupElems &telems);
+  void visit(ast::Number &num);
+  void visit(ast::BracketExpr &bexpr);
+  void visit(ast::CallExpr &cexpr);
+  void visit(ast::IfExpr &iexpr);
+  void visit(ast::ElseClause &eclause);
+  void visit(ast::WhileLoopExpr&wlexpr);
+  void visit(ast::ForLoopExpr &flexpr);
+  void visit(ast::Interval &interval);
+  void visit(ast::IterableVal &iter);
+  void visit(ast::LoopExpr &lexpr);
 
 private:
   void checkInit(ast::Expr &expr);

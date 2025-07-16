@@ -1,8 +1,8 @@
 #pragma once
 
 #include "ast.hpp"
-#include "visitor.hpp"
 #include "err_report.hpp"
+#include "oop_visitor.hpp"
 #include "type_factory.hpp"
 #include "semantic_context.hpp"
 

@@ -1,10 +1,10 @@
 # Flags
-CXXFLAGS := -fno-rtti -Wall -Wno-register -std=c++23
+CXXFLAGS := -Wall -Wno-register -std=c++23
 
 # Debug flags
 DEBUG ?= 1
 ifeq ($(DEBUG), 0)
-CXXFLAGS += -O2 -DDEBUG
+CXXFLAGS += -fno-rtti -O2
 else
 CXXFLAGS += -g -O0 -DDEBUG
 endif
@@ -23,15 +23,19 @@ TARGET_EXEC := toy_compiler
 SRC_DIR := src
 BUILD_DIR := build
 
-# Source files & target files
-SRCS := $(shell find $(SRC_DIR) -name "*.cpp")
+# Source files
+SRCS := $(filter-out $(SRC_DIR)/ast/accept.cpp, \
+         $(shell find $(SRC_DIR) -name "*.cpp")) \
+         $(SRC_DIR)/ast/accept.cpp
+
+# Target files
 OBJS := $(patsubst $(SRC_DIR)/%.cpp, $(BUILD_DIR)/%.o, $(SRCS))
 
 # Header directories
 INC_DIRS := $(shell find $(SRC_DIR) -type d)
 INC_FLAGS := $(addprefix -I, $(INC_DIRS))
 
-# dependencies
+# Dependencies
 DEPS := $(OBJS:.o=.d)
 CPPFLAGS = $(INC_FLAGS) -MMD -MP
 
@@ -41,20 +45,25 @@ $(BUILD_DIR)/$(TARGET_EXEC): $(OBJS)
 
 # C++ source
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
-	@mkdir -p $(dir $@) # 确保目录结构正常创建
+	@mkdir -p $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
-.PHONY: clean
+$(BUILD_DIR)/ast/accept.o: $(SRC_DIR)/ast/accept.cpp
+
+$(SRC_DIR)/ast/accept.cpp: $(SRC_DIR)/generate_accept.pl
+	perl $< > $@
+
+.PHONY: all verbose bear clean clean-all
 
 all:
-	@make -j
+	$(MAKE) -j
 
 verbose:
-	@VERBOSE=1 make all
+	@VERBOSE=1 $(MAKE) all
 
 bear:
-	@make clean
-	@bear -- make -j
+	@$(MAKE) clean
+	bear -- $(MAKE) all
 
 clean:
 	-rm -rf $(BUILD_DIR) *.ir *.code

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ast.hpp"
-#include "visitor.hpp"
+#include "oop_visitor.hpp"
 
 namespace sem {
 

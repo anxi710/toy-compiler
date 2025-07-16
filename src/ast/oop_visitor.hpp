@@ -4,9 +4,9 @@
 
 namespace ast {
 
-class NodeVisitor {
+class OOPVisitor {
 public:
-  virtual ~NodeVisitor() = default;
+  virtual ~OOPVisitor() = default;
 
 public:
   virtual void visit(Prog &prog) = 0;
@@ -43,10 +43,10 @@ public:
   virtual void visit(EmptyStmt &estmt) = 0;
 };
 
-// 继承自 NodeVisitor 并实现了所有虚函数
-// 其余 Visitor 继承该类，而非纯虚类 NodeVisitor
+// 继承自 OOPVisitor 并实现了所有虚函数
+// 其余 Visitor 继承该类，而非纯虚类 OOPVisitor
 // 可以按需实现虚函数，而非所有虚函数都实现
-class BaseVisitor : public NodeVisitor {
+class BaseVisitor : public OOPVisitor {
 public:
   ~BaseVisitor() override = default;
 
