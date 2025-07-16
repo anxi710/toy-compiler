@@ -2,7 +2,6 @@
 #include <cassert>
 
 #include "err_type.hpp"
-#include "varref_checker.hpp"
 #include "type_factory.hpp"
 #include "break_checker.hpp"
 #include "return_checker.hpp"
@@ -17,9 +16,10 @@ namespace sem {
 void
 SemanticChecker::checkInit(ast::Expr &expr)
 {
-  VarRefChecker vrchecker{ctx};
-  expr.accept(vrchecker);
-  if (!vrchecker.init) {
+  if (expr.symbol == nullptr) {
+    return;
+  }
+  if (!expr.symbol->init) {
     reporter.report(
       err::SemErrType::UNINITIALIZED_VAR,
       "变量在初始化之前无法使用！",
@@ -367,7 +367,7 @@ SemanticChecker::visit(ast::ArrAcc &aacc)
       aacc.value->pos,
       ctx.getCurScopeName()
     );
-    elem_type = type::TypeFactory::UNKNOWN_TYPE;
+    elem_type = type::TypeFactory::ANY_TYPE;
     aacc.res_mut = true; // 避免报错过多
   } else {
     // NOTE: 访问越界是运行时的问题！！！
@@ -382,7 +382,7 @@ SemanticChecker::visit(ast::ArrAcc &aacc)
         aacc.pos,
         ctx.getCurScopeName()
       );
-      elem_type = type::TypeFactory::UNKNOWN_TYPE;
+      elem_type = type::TypeFactory::ANY_TYPE;
       aacc.res_mut = true; // 避免报错过多
     } else {
       // everything is normal~
@@ -419,7 +419,7 @@ SemanticChecker::visit(ast::TupAcc &tacc)
       tacc.pos,
       ctx.getCurScopeName()
     );
-    elem_type = type::TypeFactory::UNKNOWN_TYPE;
+    elem_type = type::TypeFactory::ANY_TYPE;
     tacc.res_mut = true; // 避免报错过多
   } else {
     if (tacc.idx < 0 || tacc.idx > tuple_type->size()) {
@@ -434,7 +434,7 @@ SemanticChecker::visit(ast::TupAcc &tacc)
         tacc.pos,
         ctx.getCurScopeName()
       );
-      elem_type = type::TypeFactory::UNKNOWN_TYPE;
+      elem_type = type::TypeFactory::ANY_TYPE;
       tacc.res_mut = true; // 避免报错过多
     } else {
       elem_type = tuple_type->getElemType(tacc.idx);
