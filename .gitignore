@@ -15,6 +15,7 @@
 !src/**/*.hpp
 !Makefile
 !note/*.md
+!note/**/*.png
 !docs/*.pdf
 !test/**/*.rs
 !.github/**/*.yml
