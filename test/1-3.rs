@@ -1,4 +1,4 @@
 fn main() -> i32 {
     ;;;
-    return;
+    return 1;
 }

@@ -14,6 +14,21 @@ static inline constexpr std::string RED    = "\033[1;31m";
 static inline constexpr std::string BLUE   = "\033[1;34m";
 static inline constexpr std::string YELLOW = "\033[1;33m";
 
+void
+ErrReporter::displaySrc(const util::Position &pos) const
+{
+  std::ostringstream oss;
+  oss << std::format("{:<3}", pos.row + 1);
+
+  std::cerr << BLUE << "   |  " << std::endl
+    << BLUE << oss.str() << "| " << RESET
+    << this->text[pos.row] << std::endl;
+
+  int delta = oss.str().length() + pos.col - 2;
+  std::cerr << BLUE << "   |" << std::string(delta, ' ') << "^" << RESET
+    << std::endl;
+}
+
 /*---------------- LexErr ----------------*/
 
 /**
@@ -30,16 +45,7 @@ ErrReporter::displayUnknownType(const LexErr &err) const
     << std::format("{}", err.pos + util::Position{1, 1})
     << std::endl;
 
-  std::ostringstream oss;
-  oss << std::format("{:<3}", err.pos.row + 1);
-
-  std::cerr << BLUE << "   |  " << std::endl
-    << BLUE << oss.str() << "| " << RESET
-    << this->text[err.pos.row] << std::endl;
-
-  int delta = oss.str().length() + err.pos.col - 2;
-  std::cerr << BLUE << "   |" << std::string(delta, ' ') << "^" << RESET
-    << std::endl;
+  displaySrc(err.pos);
 }
 
 /**
@@ -74,16 +80,7 @@ ErrReporter::displayUnexpectedToken(const ParErr &err) const
     << std::format("{}", err.pos + util::Position{1, 1})
     << std::endl;
 
-  std::ostringstream oss;
-  oss << std::format("{:<3}", err.pos.row + 1);
-
-  std::cerr << BLUE << "   |  " << std::endl
-    << BLUE << oss.str() << "| " << RESET
-    << this->text[err.pos.row] << std::endl;
-
-  int delta = oss.str().length() + err.pos.col - 2;
-  std::cerr << BLUE << "   |" << std::string(delta, ' ') << "^" << RESET
-    << std::endl;
+  displaySrc(err.pos);
 
   std::cerr << BLUE << "   |" << std::endl;
   std::cerr << BLUE << "   =" << RESET << std::format(" Details: {}", err.msg)
@@ -229,16 +226,7 @@ ErrReporter::displaySemErr(const SemErr &err) const
       err.pos + util::Position{1, 1}
     ) << std::endl;
 
-  std::ostringstream oss;
-  oss << std::format("{:<3}", err.pos.row + 1);
-
-  std::cerr << BLUE << "   |  " << std::endl
-    << BLUE << oss.str() << "| " << RESET
-    << this->text[err.pos.row] << std::endl;
-
-  int delta = oss.str().length() + err.pos.col - 2;
-  std::cerr << BLUE << "   |" << std::string(delta, ' ') << "^" << RESET
-    << std::endl;
+  displaySrc(err.pos);
 
   std::cerr << BLUE << "   |" << std::endl;
   std::cerr << BLUE << "   =" << RESET << std::format(" Details: {}", err.msg)

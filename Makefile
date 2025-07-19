@@ -1,5 +1,5 @@
 # Flags
-CXXFLAGS := -Wall -Wno-register -std=c++23
+CXXFLAGS := -Wall -Wno-register -std=c++26
 
 # Debug flags
 DEBUG ?= 1

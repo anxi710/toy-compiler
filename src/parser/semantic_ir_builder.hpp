@@ -2,15 +2,10 @@
 
 #include <memory>
 
+#include "err_report.hpp"
 #include "ir_builder.hpp"
 #include "symbol_table.hpp"
 #include "semantic_checker.hpp"
-
-namespace err {
-
-class ErrReporter;
-
-} // namespace err
 
 namespace par {
 

@@ -1,8 +1,8 @@
 #include <print>
 #include <regex>
-#include <ranges>
-#include <cassert>
 #include <fstream>
+#include <generator>
+#include <string_view>
 
 #include "panic.hpp"
 #include "type.hpp"
@@ -21,13 +21,19 @@ SymbolTable::enterScope(const std::string &name, bool create)
   std::string nextname = std::format("{}::{}", curname, name);
 
   if (!create) {
-    assert(scopes.contains(nextname));
+    ASSERT_MSG(
+      scopes.contains(nextname),
+      "scope didn't created"
+    );
     curname  = nextname;
     curscope = scopes[curname];
     return;
   }
 
-  assert(!scopes.contains(nextname));
+  ASSERT_MSG(
+    !scopes.contains(nextname),
+    "scope already exists"
+  );
 
   curname  = nextname;
   curscope = std::make_shared<Scope>();
@@ -40,12 +46,18 @@ SymbolTable::enterScope(const std::string &name, bool create)
 void
 SymbolTable::exitScope()
 {
-  std::size_t idx = curname.find_last_of(':');
-  assert(idx < curname.length());
+  std::size_t idx = curname.rfind("::");
+  ASSERT_MSG(
+    idx < curname.length(),
+    "cann't exit scope"
+  );
 
-  std::string name = curname.substr(idx + 1);
-  curname = curname.substr(0, idx - 1);
-  assert(scopes.contains(curname));
+  std::string name = curname.substr(idx + 2);
+  curname = curname.substr(0, idx);
+  ASSERT_MSG(
+    scopes.contains(curname),
+    "scope doesn't exist"
+  );
 
   curscope = scopes[curname];
 }
@@ -101,6 +113,19 @@ SymbolTable::lookupFunc(const std::string &name) const
   return std::nullopt;
 }
 
+static std::generator<std::string_view>
+reverseScopeRange(std::string_view scope_name)
+{
+  while (true) {
+    co_yield scope_name;
+    auto pos = scope_name.rfind("::");
+    if (pos == std::string_view::npos) {
+      break;
+    }
+    scope_name = scope_name.substr(0, pos);
+  }
+}
+
 /**
  * @brief  查找变量符号
  * @param  name 变量名
@@ -109,29 +134,16 @@ SymbolTable::lookupFunc(const std::string &name) const
 std::optional<ValuePtr>
 SymbolTable::lookupVal(const std::string &name) const
 {
-  auto exit_scope = [](std::string &scope_name) -> bool {
-    std::size_t idx = scope_name.find_last_of(':');
-    if (idx >= scope_name.length()) {
-      return false;
+  for (auto scopename : reverseScopeRange(curname)) {
+    if (auto it = scopes.find(scopename); it != scopes.end()) {
+      auto scope = it->second;
+      if (auto var_it = scope->find(name); var_it != scope->end()) {
+        return var_it->second;
+      }
     }
-    scope_name = scope_name.substr(0, idx - 1);
-    return true;
-  };
+  }
 
-  auto scope_name = curname;
-
-  bool flag = false;
-  ValuePtr val;
-  do {
-    auto p_scope = scopes.find(scope_name)->second;
-    if (p_scope->contains(name)) {
-      flag = true;
-      val = p_scope->find(name)->second;
-      break;
-    }
-  } while (exit_scope(scope_name));
-
-  return flag ? std::optional<ValuePtr>{val} : std::nullopt;
+  return std::nullopt;
 }
 
 std::optional<ConstantPtr>
@@ -139,9 +151,8 @@ SymbolTable::lookupConst(const std::string &name) const
 {
   if (constvals.contains(name)) {
     return constvals.find(name)->second;
-  } else {
-    return std::nullopt;
   }
+  return std::nullopt;
 }
 
 /**
@@ -185,6 +196,7 @@ SymbolTable::checkAutoTypeInfer() const
   return failed_vals;
 }
 
+
 /**
  * @brief 打印符号表
  * @param out 输出流
@@ -192,9 +204,20 @@ SymbolTable::checkAutoTypeInfer() const
 void
 SymbolTable::dump(std::ofstream &out)
 {
-  std::println(out, "=============== Symbol Table ===============\n");
-  std::println(out, "Function:");
-  std::println(out, "{}", std::string(44, '-'));
+  std::println(out, "=============== Symbol Table ===============");
+
+  dumpFunc(out);
+  dumpLocalVar(out);
+  dumpConstant(out);
+}
+
+void
+SymbolTable::dumpFunc(std::ofstream &out)
+{
+  constexpr int delimiter_cnt = 44;
+
+  std::println(out, "\nFunction:");
+  std::println(out, "{}", std::string(delimiter_cnt, '-'));
 
   for (const auto &func : funcs) {
     std::println(out, "  function name: {}", func.first);
@@ -213,9 +236,13 @@ SymbolTable::dump(std::ofstream &out)
       }
     }
     std::println(out, "  return type: {}", func.second->type->str());
-    std::println(out, "{}", std::string(44, '-'));
+    std::println(out, "{}", std::string(delimiter_cnt, '-'));
   }
+}
 
+void
+SymbolTable::dumpLocalVar(std::ofstream &out)
+{
   std::println(out, "\nLocal Variable:");
 
   for (const auto &scope : scopes) {
@@ -243,7 +270,11 @@ SymbolTable::dump(std::ofstream &out)
       }
     }
   }
+}
 
+void
+SymbolTable::dumpConstant(std::ofstream &out)
+{
   std::println(out, "\nConstant:");
 
   for (const auto &[idx, constval] : std::views::enumerate(constvals)) {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <unordered_map>
 
 #include "symbol.hpp"
@@ -35,13 +36,34 @@ public:
   void dump(std::ofstream &out);
 
 private:
+  void dumpFunc(std::ofstream &out);
+  void dumpLocalVar(std::ofstream &out);
+  void dumpConstant(std::ofstream &out);
+
+private:
   using Scope    = std::unordered_map<std::string, ValuePtr>;
   using ScopePtr = std::shared_ptr<Scope>;
 
   ScopePtr    curscope; // current scope
   std::string curname;  // 作用域限定符
 
-  std::unordered_map<std::string, ScopePtr>    scopes; // TempVal && LocalVal
+  struct TransparentHash {
+    using is_transparent = void;
+
+    std::size_t operator()(std::string_view str) const noexcept {
+      return std::hash<std::string_view>{}(str);
+    }
+    std::size_t operator()(const std::string &str) const noexcept {
+      return std::hash<std::string_view>{}(str);
+    }
+  };
+
+  std::unordered_map<
+    std::string,
+    ScopePtr,
+    TransparentHash,
+    std::equal_to<> // 透明比较器
+  > scopes; // TempVal && LocalVal
   std::unordered_map<std::string, ConstantPtr> constvals;
   std::unordered_map<std::string, FunctionPtr> funcs;
 };

@@ -1,7 +1,8 @@
 #include <ranges>
 #include <cassert>
 
-#include "err_type.hpp"
+#include "panic.hpp"
+#include "err_report.hpp"
 #include "type_factory.hpp"
 #include "break_checker.hpp"
 #include "return_checker.hpp"
@@ -19,6 +20,7 @@ SemanticChecker::checkInit(ast::Expr &expr)
   if (expr.symbol == nullptr) {
     return;
   }
+
   if (!expr.symbol->init) {
     reporter.report(
       err::SemErrType::UNINITIALIZED_VAR,
@@ -45,34 +47,40 @@ SemanticChecker::checkCondition(ast::Expr &cond, util::Position pos)
   } // end if
 }
 
+static ast::Type
+inferType(const ast::Type &type)
+{
+  // 注意：这里不能使用 ast::Type 封装的 type::TypePtr 的比较逻辑
+  // 因为这里判断的是裸指针是否相等！
+  if (type.type == type::TypeFactory::ANY_TYPE) {
+    // ANY_TYPE 在进行推导时要被推导为 unit type!!!
+    return ast::Type{type::TypeFactory::UNIT_TYPE};
+  }
+  return type;
+}
+
 void
 SemanticChecker::visit(ast::FuncDecl &fdecl)
 {
   // 检查函数体中是否有 return 表达式
-  // 如果没有且返回类型是 unit type，则自动生成一个 return ;
-  if (!fdecl.body->has_ret) {
-    if (fdecl.header->type == ast::Type{type::TypeFactory::UNIT_TYPE}) {
-      // 对于 unit type 而言，可以自动生成一个没带返回值的 return 语句
-      auto retexpr = std::make_shared<ast::RetExpr>(std::nullopt);
-      retexpr->used_as_stmt = true;
-      retexpr->type = ast::Type{type::TypeFactory::UNIT_TYPE};
-      auto retstmt = std::make_shared<ast::ExprStmt>(retexpr);
-      retstmt->type = ast::Type{type::TypeFactory::UNIT_TYPE};
-      fdecl.body->stmts.push_back(std::move(retstmt));
-    } else if (fdecl.body->type == ast::Type{type::TypeFactory::UNIT_TYPE}){
-      // 注意没有 return 语句，但是最后一行是表达式的情况
-      reporter.report(
-        err::SemErrType::MISSING_RETVAL,
-        std::format(
-          "函数 {} 需要一个类型为 {} 的返回值",
-          fdecl.header->name,
-          fdecl.header->type.str()
-        ),
-        fdecl.pos,
-        ctx.getCurScopeName()
-      );
-    }
+  if (!fdecl.body->has_ret
+    && fdecl.header->type.type != type::TypeFactory::UNIT_TYPE
+    && fdecl.body->type.type == type::TypeFactory::UNIT_TYPE)
+  {
+    // 如果函数体中没有 return（在函数体中语句的层面上）且函数体的最后一个语句不是默认返回的表达式
+    reporter.report(
+      err::SemErrType::MISSING_RETVAL,
+      std::format(
+        "函数 {} 需要一个类型为 {} 的返回值",
+        fdecl.header->name,
+        fdecl.header->type.str()
+      ),
+      fdecl.pos,
+      ctx.getCurScopeName()
+    );
   }
+
+  ctx.resetTempCnt();
 }
 
 void
@@ -99,17 +107,9 @@ SemanticChecker::visit(ast::StmtBlockExpr &sbexpr)
   sbexpr.res_mut = false;
 
   if (sbexpr.stmts.empty()) {
-    // 注意检查是否为空！
     sbexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
   } else {
-    // 注意 back() 需要先检查 empty() 再使用！
-    if (sbexpr.stmts.back()->type.type == type::TypeFactory::ANY_TYPE) {
-      // 注意：这里不能使用 ast::Type 封装的 type::TypePtr 的比较逻辑
-      // 因为这里判断的是裸指针是否相等！
-      sbexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE}; // ANY_TYPE 在进行推导时要被推导为 unit type!!!
-    } else {
-      sbexpr.type = sbexpr.stmts.back()->type;
-    }
+    sbexpr.type = inferType(sbexpr.stmts.back()->type);
   }
 
   // 检查是否有未推导出类型的变量
@@ -133,45 +133,35 @@ SemanticChecker::visit(ast::EmptyStmt &estmt)
 void
 SemanticChecker::visit(ast::VarDeclStmt &vdstmt)
 {
+  auto value = vdstmt.value.value_or(nullptr);
   if (vdstmt.vartype.type != type::TypeFactory::UNKNOWN_TYPE) {
     // let (mut)? <ID> : Type ;
-    if (vdstmt.value.has_value() &&
-        vdstmt.vartype != vdstmt.value.value()->type
-    ) {
+    if (value && vdstmt.vartype != value->type) {
       // let (mut)? <ID> : Type = Expr ;
       reporter.report(
         err::SemErrType::TYPE_MISMATCH,
         std::format(
           "表达式的类型 {} 和变量 {} 声明的类型 {} 不一致",
-          vdstmt.value.value()->type.str(),
+          value->type.str(),
           vdstmt.name,
           vdstmt.vartype.str()
         ),
-        vdstmt.value.value()->pos,
+        value->pos,
         ctx.getCurScopeName()
       );
     }
-  } else {
-    // let (mut)? <ID> ;
-    if (vdstmt.value.has_value()) {
-      // let (mut)? <ID> = Expr ;
-      // Type Inference
-      if (vdstmt.value.value()->type.type == type::TypeFactory::ANY_TYPE) {
-        vdstmt.vartype = ast::Type{type::TypeFactory::UNIT_TYPE};
-      } else {
-        vdstmt.vartype = vdstmt.value.value()->type;
-      }
-    }
+  } else if (value) {
+    // let (mut)? <ID> = Expr ;
+    // Type Inference
+    vdstmt.vartype = inferType(value->type);
   }
 
   bool init = vdstmt.value.has_value();
-  ctx.declareVal(vdstmt.name, vdstmt.mut, init, vdstmt.vartype.type, vdstmt.pos);
+  ctx.declareVar(vdstmt.name, vdstmt.mut, init, vdstmt.vartype.type, vdstmt.pos);
 
-  if (vdstmt.value.has_value()) {
-    if (auto value = vdstmt.value.value(); value->is_var) {
-      // 如果用于初始化的表达式是一个变量，则去检查该变量是否已经初始化
-      checkInit(*value);
-    }
+  if (value && value->is_var) {
+    // 如果用于初始化的表达式是一个变量，则去检查该变量是否已经初始化
+    checkInit(*value);
   }
 
   vdstmt.type = ast::Type{type::TypeFactory::UNIT_TYPE}; // 变量声明语句使用的是副作用！！！
@@ -191,13 +181,7 @@ SemanticChecker::visit(ast::ExprStmt &estmt)
     //   Tips: 这里的命名在语义上可能不是那么合理，可以查看 parser
     //   的具体设置逻辑，可以发现只有在没有 semi-colon 且下一个 token
     //   是 } 时，才会设置 is_last 为 true
-    // 在这里需要注意 ANY_TYPE 的推导问题（ANY_TYPE 作为一个推导类型变量存在，
-    // 其不是一个实际的类型）
-    if (estmt.expr->type.type == type::TypeFactory::ANY_TYPE) {
-      estmt.type = ast::Type{type::TypeFactory::UNIT_TYPE};
-    } else {
-      estmt.type = estmt.expr->type;
-    }
+    estmt.type = inferType(estmt.expr->type);
     return;
   }
 
@@ -221,33 +205,34 @@ SemanticChecker::visit(ast::ExprStmt &estmt)
 void
 SemanticChecker::visit(ast::RetExpr &rexpr)
 {
-  if (rexpr.retval.has_value()) {
+  auto curfuncname = ctx.getCurFuncName();
+  auto curfunctype = ctx.getCurFuncType();
+  if (auto retval = rexpr.retval.value_or(nullptr); retval) {
     // return Expr
-    ast::ExprPtr retval = rexpr.retval.value();
     if (retval->is_var) {
       // 检查该变量是否已经初始化
       checkInit(*retval);
     }
 
-    if (ctx.curfunc->type != retval->type.type) {
+    if (curfunctype != retval->type.type) {
       // 返回值表达式的类型与函数返回值类型不匹配
       reporter.report(
         err::SemErrType::RETTYPE_MISMATCH,
         std::format("返回类型 {} 与函数 {} 声明的 {} 不一致",
           retval->type.str(),
-          ctx.curfunc->name,
-          ctx.curfunc->type->str()
+          curfuncname,
+          curfunctype->str()
         ),
         rexpr.pos, ctx.getCurScopeName()
       );
     }
   } else {
     // return
-    if (!type::typeEquals(ctx.curfunc->type, type::TypeFactory::UNIT_TYPE)) {
+    if (!type::typeEquals(curfunctype, type::TypeFactory::UNIT_TYPE)) {
       // 函数返回类型非空但是返回语句无返回值
       reporter.report(
         err::SemErrType::MISSING_RETVAL,
-        std::format("函数 '{}' 需要返回值，return 却没有返回", ctx.curfunc->name),
+        std::format("函数 '{}' 需要返回值，return 却没有返回", curfuncname),
         rexpr.pos, ctx.getCurScopeName()
       );
     }
@@ -268,25 +253,6 @@ SemanticChecker::visit(ast::BreakExpr &bexpr)
   bexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
   bexpr.res_mut = false;
 
-  if (bexpr.value.has_value()) {
-    if (auto value = bexpr.value.value(); value->is_var) {
-      checkInit(*value); // 检查该变量是否已经初始化
-    }
-
-    if (auto loopctx = ctx.getLoopCtx();
-      loopctx.has_value()
-    && loopctx.value().kind != SemanticContext::Scope::Kind::LOOP) {
-      // break Expr
-      reporter.report(
-        err::SemErrType::BREAK_CTX_ERROR,
-        "含有值的 break 表达式只能在 loop 上下文中",
-        bexpr.pos,
-        ctx.getCurScopeName()
-      );
-      return;
-    }
-  }
-
   // break 表达式只能出现在循环上下文中
   if (!ctx.inLoopCtx()) {
     reporter.report(
@@ -295,6 +261,35 @@ SemanticChecker::visit(ast::BreakExpr &bexpr)
       bexpr.pos,
       ctx.getCurScopeName()
     );
+
+    return;
+  }
+
+  if (auto value = bexpr.value.value_or(nullptr); value) {
+    // break Expr
+    if (value->is_var) {
+      checkInit(*value); // 检查该变量是否已经初始化
+    }
+
+    auto loopctx = ctx.getLoopCtx().value_or(nullptr);
+    ASSERT_MSG(loopctx, "must in loop context");
+
+    if (loopctx->kind != SemanticContext::Scope::Kind::LOOP) {
+      reporter.report(
+        err::SemErrType::BREAK_CTX_ERROR,
+        "含有值的 break 表达式只能在 loop 上下文中",
+        bexpr.pos,
+        ctx.getCurScopeName()
+      );
+      return;
+    }
+
+    // 如果 loop ctx 中没有记录 loop 表达式对应的临时变量
+    // 则生成一个临时变量并在 loop ctx 中记录
+    if (!loopctx->val.has_value()) {
+      loopctx->val = ctx.produceTemp(bexpr.pos, value->type.type);
+    }
+    bexpr.dst = loopctx->val.value();
   }
 }
 
@@ -322,12 +317,10 @@ SemanticChecker::visit(ast::Variable &var)
   // NOTE: 区分对变量的访问还是对变量的赋值！！！
 
   // 检查变量是否声明
-  auto opt_var = ctx.lookupVal(var.name);
-  type::TypePtr type;
-  if (opt_var.has_value()) {
-    type = opt_var.value()->type;
-    var.res_mut = opt_var.value()->mut;
-    var.symbol = opt_var.value();
+  if (auto val = ctx.lookupVal(var.name).value_or(nullptr); val) {
+    var.type = ast::Type{val->type};
+    var.res_mut = val->mut;
+    var.symbol = val;
   } else {
     reporter.report(
       err::SemErrType::UNDECLARED_VAR,
@@ -337,11 +330,10 @@ SemanticChecker::visit(ast::Variable &var)
     );
 
     // 避免报错过多
-    type = type::TypeFactory::ANY_TYPE;
+    var.type = ast::Type{type::TypeFactory::ANY_TYPE};
     var.res_mut = true;
   }
 
-  var.type = ast::Type{type};
   var.is_var = true;
 }
 
@@ -355,7 +347,6 @@ SemanticChecker::visit(ast::ArrAcc &aacc)
 
   // 检查数组访问对象是否是一个数组类型，并检查索引是否是一个 i32
   type::TypePtr arr_type = aacc.value->type.type;
-  type::TypePtr elem_type;
   if (!type::TypeFactory::isArray(arr_type)) {
     // 对象不是 array type
     reporter.report(
@@ -367,31 +358,30 @@ SemanticChecker::visit(ast::ArrAcc &aacc)
       aacc.value->pos,
       ctx.getCurScopeName()
     );
-    elem_type = type::TypeFactory::ANY_TYPE;
+
+    aacc.type = ast::Type{type::TypeFactory::ANY_TYPE};
+    aacc.res_mut = true; // 避免报错过多
+  } else if (aacc.idx->type != ast::Type{type::TypeFactory::INT_TYPE}) {
+    // NOTE: 数组访问越界是运行时的问题！！！
+
+    // 索引必须是一个整数！
+    reporter.report(
+      err::SemErrType::TYPE_MISMATCH,
+      std::format(
+        "用于访问的数组下标不是一个 i32 类型的值，而是 {}",
+        aacc.idx->type.str()
+      ),
+      aacc.pos,
+      ctx.getCurScopeName()
+    );
+
+    aacc.type = ast::Type{type::TypeFactory::ANY_TYPE};
     aacc.res_mut = true; // 避免报错过多
   } else {
-    // NOTE: 访问越界是运行时的问题！！！
-    if (aacc.idx->type != ast::Type{type::TypeFactory::INT_TYPE}) {
-      // 索引必须是一个整数！
-      reporter.report(
-        err::SemErrType::TYPE_MISMATCH,
-        std::format(
-          "用于访问的数组下标不是一个 i32 类型的值，而是 {}",
-          aacc.idx->type.str()
-        ),
-        aacc.pos,
-        ctx.getCurScopeName()
-      );
-      elem_type = type::TypeFactory::ANY_TYPE;
-      aacc.res_mut = true; // 避免报错过多
-    } else {
-      // everything is normal~
-      elem_type = arr_type->getElemType();
-      aacc.res_mut = aacc.value->res_mut;
-    }
+    // everything is normal~
+    aacc.type = ast::Type{arr_type->getElemType()};
+    aacc.res_mut = aacc.value->res_mut;
   }
-
-  aacc.type = ast::Type{elem_type};
 }
 
 void
@@ -407,7 +397,6 @@ SemanticChecker::visit(ast::TupAcc &tacc)
   //   因为元组访问是通过给定 number 进行的，
   //   而不支持动态计算索引
   type::TypePtr tuple_type = tacc.value->type.type;
-  type::TypePtr elem_type;
   if (!type::TypeFactory::isTuple(tuple_type)) {
     // 元组访问对象不是元组类型
     reporter.report(
@@ -419,30 +408,26 @@ SemanticChecker::visit(ast::TupAcc &tacc)
       tacc.pos,
       ctx.getCurScopeName()
     );
-    elem_type = type::TypeFactory::ANY_TYPE;
+    tacc.type = ast::Type{type::TypeFactory::ANY_TYPE};
+    tacc.res_mut = true; // 避免报错过多
+  } else if (tacc.idx->value < 0 || tacc.idx->value > tuple_type->size()) {
+    // 元组访问越界
+    reporter.report(
+      err::SemErrType::OUTOFBOUNDS_ACCESS,
+      std::format(
+        "合法的元组访问区间为 0 ~ {}，但试图访问的索引为 {}",
+        tuple_type->size() - 1,
+        tacc.idx->value
+      ),
+      tacc.pos,
+      ctx.getCurScopeName()
+    );
+    tacc.type = ast::Type{type::TypeFactory::ANY_TYPE};
     tacc.res_mut = true; // 避免报错过多
   } else {
-    if (tacc.idx < 0 || tacc.idx > tuple_type->size()) {
-      // 元组访问越界
-      reporter.report(
-        err::SemErrType::OUTOFBOUNDS_ACCESS,
-        std::format(
-          "合法的元组访问区间为 0 ~ {}，但试图访问的索引为 {}",
-          tuple_type->size() - 1,
-          tacc.idx
-        ),
-        tacc.pos,
-        ctx.getCurScopeName()
-      );
-      elem_type = type::TypeFactory::ANY_TYPE;
-      tacc.res_mut = true; // 避免报错过多
-    } else {
-      elem_type = tuple_type->getElemType(tacc.idx);
-      tacc.res_mut = tacc.value->res_mut;
-    }
+    tacc.type = ast::Type{tuple_type->getElemType(tacc.idx->value)};
+    tacc.res_mut = tacc.value->res_mut;
   }
-
-  tacc.type = ast::Type{elem_type};
 }
 
 void
@@ -465,6 +450,9 @@ SemanticChecker::visit(ast::AssignExpr &aexpr)
   // Rust 中赋值表达式的值并不是左值！而是 ()
   aexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
 
+  // NOTE: res_mut 表示了表达式的计算结果是否可变
+  //       这里只有变量及其数组或元组访问是可能可变的
+  //       其余表达式的计算记过均是不可变的！
   if (aexpr.lval->is_var) {
     // 赋值表达式中并不需要检查左值变量是否初始化
     // 赋值是给变量初始化的一种手段！
@@ -475,17 +463,7 @@ SemanticChecker::visit(ast::AssignExpr &aexpr)
         aexpr.lval->symbol->type = aexpr.rval->type.type;
       }
     }
-  }
 
-  if (aexpr.rval->is_var) {
-    // 检查变量是否初始化
-    checkInit(*aexpr.rval);
-  }
-
-  // NOTE: res_mut 表示了表达式的计算结果是否可变
-  //       这里只有变量及其数组或元组访问是可能可变的
-  //       其余表达式的计算记过均是不可变的！
-  if (aexpr.lval->is_var) {
     if (aexpr.lval->symbol != nullptr) {
       if (aexpr.lval->symbol->init && !aexpr.lval->symbol->mut) {
         // 对于 immutable 的变量而言，
@@ -501,16 +479,19 @@ SemanticChecker::visit(ast::AssignExpr &aexpr)
       }
       aexpr.lval->symbol->init = true;
     }
-  } else {
-    if (!aexpr.lval->res_mut) {
-      reporter.report(
-        err::SemErrType::ASSIGN_IMMUTABLE,
-        "赋值表达式的左值不可变",
-        aexpr.lval->pos,
-        ctx.getCurScopeName()
-      );
-      return;
-    }
+  } else if (!aexpr.lval->res_mut) {
+    reporter.report(
+      err::SemErrType::ASSIGN_IMMUTABLE,
+      "赋值表达式的左值不可变",
+      aexpr.lval->pos,
+      ctx.getCurScopeName()
+    );
+    return;
+  }
+
+  if (aexpr.rval->is_var) {
+    // 检查变量是否初始化
+    checkInit(*aexpr.rval);
   }
 
   if (aexpr.lval->type != aexpr.rval->type) {
@@ -541,8 +522,9 @@ SemanticChecker::visit(ast::CmpExpr &cexpr)
   cexpr.res_mut = false;
   cexpr.type = ast::Type{type::TypeFactory::BOOL_TYPE};
 
-  if (cexpr.lhs->type != ast::Type{type::TypeFactory::INT_TYPE} ||
-    cexpr.rhs->type != ast::Type{type::TypeFactory::INT_TYPE}) {
+  if (cexpr.lhs->type != ast::Type{type::TypeFactory::INT_TYPE}
+    || cexpr.rhs->type != ast::Type{type::TypeFactory::INT_TYPE})
+  {
     reporter.report(
       err::SemErrType::INCOMPARABLE_TYPES,
       std::format(
@@ -569,8 +551,9 @@ SemanticChecker::visit(ast::AriExpr &aexpr)
   aexpr.res_mut = false;
   aexpr.type = ast::Type{type::TypeFactory::INT_TYPE};
 
-  if (aexpr.lhs->type != ast::Type{type::TypeFactory::INT_TYPE} ||
-    aexpr.rhs->type != ast::Type{type::TypeFactory::INT_TYPE}) {
+  if (aexpr.lhs->type != ast::Type{type::TypeFactory::INT_TYPE}
+    || aexpr.rhs->type != ast::Type{type::TypeFactory::INT_TYPE})
+  {
     reporter.report(
       err::SemErrType::UNCOMPUTABLE_TYPES,
       std::format(
@@ -594,7 +577,7 @@ SemanticChecker::visit(ast::ArrElems &aelems)
   }
 
   if (aelems.elems.size() == 0) {
-    auto arr_type = ctx.types.getArray(0, type::TypeFactory::UNKNOWN_TYPE);
+    auto arr_type = ctx.produceArrType(0, type::TypeFactory::UNKNOWN_TYPE);
     aelems.type = ast::Type{arr_type};
     return;
   }
@@ -616,7 +599,7 @@ SemanticChecker::visit(ast::ArrElems &aelems)
   }
 
   aelems.res_mut = false;
-  aelems.type = ast::Type{ctx.types.getArray(aelems.elems.size(), type.type)};
+  aelems.type = ast::Type{ctx.produceArrType(aelems.elems.size(), type.type)};
 }
 
 void
@@ -635,37 +618,30 @@ SemanticChecker::visit(ast::TupElems &telems)
     | std::ranges::to<std::vector<type::TypePtr>>();
 
   telems.res_mut = false;
-  telems.type = ast::Type{ctx.types.getTuple(etypes)};
+  telems.type = ast::Type{ctx.produceTupType(etypes)};
 }
 
 void
 SemanticChecker::visit(ast::BracketExpr &bexpr)
 {
-  if (bexpr.expr.has_value()) {
-    auto expr = bexpr.expr.value();
+  auto expr = bexpr.expr.value_or(nullptr);
+  if (expr) {
     if (expr->is_var) {
       checkInit(*expr); // 检查变量是否初始化
     }
 
     bexpr.res_mut = expr->res_mut;
-
-    if (expr->type.type == type::TypeFactory::ANY_TYPE) {
-      bexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
-    } else {
-      bexpr.type = expr->type;
-    }
+    bexpr.type = inferType(expr->type);
   } else {
     bexpr.res_mut = false;
     bexpr.type = ast::Type{type::TypeFactory::UNIT_TYPE};
   }
-
 }
 
 void
 SemanticChecker::visit(ast::Number &num)
 {
   num.symbol = ctx.declareConst(num.value, num.pos);
-
   num.res_mut = false;
   num.type = ast::Type{type::TypeFactory::INT_TYPE};
 }
@@ -738,7 +714,6 @@ SemanticChecker::visit(ast::CallExpr &cexpr)
         cexpr.pos,
         ctx.getCurScopeName()
       );
-      return;
     } // end if
   } // end for
 }
@@ -753,26 +728,24 @@ SemanticChecker::visit(ast::IfExpr &iexpr)
   // condition 在解析时并不保证是一个 CmpExpr，因此需要再次判断
   checkCondition(*iexpr.cond, iexpr.pos);
 
-  ast::Type type = ast::Type{type::TypeFactory::UNKNOWN_TYPE};
-  if (iexpr.body->has_ret) {
-    if (iexpr.elses.empty() || iexpr.elses.back()->cond.has_value()) {
-      type = ast::Type{type::TypeFactory::UNIT_TYPE};
-    } else {
-      for (const auto &eclause : iexpr.elses) {
-        if (!eclause->body->has_ret) {
-          type = eclause->body->type;
-          break;
-        }
-      } // end for
-      if (type == ast::Type{type::TypeFactory::UNKNOWN_TYPE}) {
-        // 如果所有分支都存在一个 return，则将其设置为 AnyType
-        // 因此可以尽最大可能的减少误报
-        type = ast::Type{type::TypeFactory::ANY_TYPE};
-      }
-    } // end if
-  } else {
+  ast::Type type;
+  if (!iexpr.body->has_ret) {
     type = iexpr.body->type;
-  } // end if
+  } else if (iexpr.elses.empty() || iexpr.elses.back()->cond.has_value()) {
+    type = ast::Type{type::TypeFactory::UNIT_TYPE};
+  } else if (
+    auto it = std::ranges::find_if(
+      iexpr.elses,
+      [](const auto &eclause) { return !eclause->body->has_ret; }
+    );
+    it != iexpr.elses.end()
+  ) {
+    type = (*it)->body->type;
+  } else {
+    // 如果所有分支都存在一个 return，则将其设置为 AnyType
+    // 因此可以尽最大可能的减少误报
+    type = ast::Type{type::TypeFactory::ANY_TYPE};
+  }
 
   // 检查 else if 和 else 分支的类型是否和推导的类型一致
   for (const auto &eclause : iexpr.elses) {
@@ -816,9 +789,8 @@ SemanticChecker::visit(ast::ElseClause &eclause)
 {
   // 只需检查 condition 的类型是否是 bool 类型
   // 在 if 表达式中会直接使用 eclause.body 来进行判断
-  if (eclause.cond.has_value()) {
+  if (auto cond = eclause.cond.value_or(nullptr); cond) {
     // else if condition StmtBlockExpr
-    auto cond = eclause.cond.value();
     if (cond->is_var) {
       checkInit(*cond); // 检查变量是否初始化
     }
@@ -898,7 +870,8 @@ SemanticChecker::visit(ast::Interval &interval)
       interval.start->pos,
       ctx.getCurScopeName()
     );
-  } else if (interval.end->type.type != type::TypeFactory::INT_TYPE) {
+  }
+  if (interval.end->type.type != type::TypeFactory::INT_TYPE) {
     reporter.report(
       err::SemErrType::UNEXPECTED_EXPR_TYPE,
       std::format(
@@ -919,30 +892,27 @@ SemanticChecker::visit(ast::IterableVal &iter)
   }
 
   // 现阶段只有 ArrayType 是可以迭代的
-  type::TypePtr type = iter.value->type.type;
-  if (!type::TypeFactory::isArray(type)) {
+  ast::Type type = iter.value->type;
+  if (!type::TypeFactory::isArray(type.type)) {
     reporter.report(
       err::SemErrType::UNEXPECTED_EXPR_TYPE,
       std::format(
         "{} 不可迭代",
-        type->str()
+        type.str()
       ),
       iter.pos,
       ctx.getCurScopeName()
     );
   } // end if
 
-  if (type == type::TypeFactory::ANY_TYPE) {
-    // 虽然 AnyType 不是 iterable 的
-    // 但是仍需避免其因为类型推导而暴露出去
-    iter.type = ast::Type{type::TypeFactory::UNIT_TYPE};
-  } else {
-    iter.type = iter.value->type;
-  }
+  // 虽然 AnyType 不是 iterable 的
+  // 但是仍需避免其因为类型推导而暴露出去
+  iter.symbol = iter.value->symbol;
+  iter.type = inferType(type);
 }
 
 void
-SemanticChecker::visit(ast::LoopExpr&lexpr)
+SemanticChecker::visit(ast::LoopExpr &lexpr)
 {
   // loop expression 的类型由其循环体内的 break 语句决定
   // 其循环体的类型应该是 unit type
@@ -968,6 +938,12 @@ SemanticChecker::visit(ast::LoopExpr&lexpr)
     );
   } // end if
 
+  if (lexpr.type.type != type::TypeFactory::UNIT_TYPE) {
+    auto loopctx = ctx.getLoopCtx().value_or(nullptr);
+    ASSERT_MSG(loopctx, "don't in loop ctx");
+    ASSERT_MSG(loopctx->val.has_value(), "didn't allocate temp value");
+    lexpr.symbol = loopctx->val.value();
+  }
   lexpr.res_mut = false;
 }
 

@@ -1,49 +1,37 @@
 #pragma once
 
 #include <print>
-#include <string_view>
-#include <source_location>
+#include <string>
 #include <cstdlib>
+#include <source_location>
 
 namespace util {
 
-// 带信息的断言：仅在 Debug 模式下启用
-inline void
-assertWithMsg(bool cond, std::string_view msg, const std::source_location &loc)
+[[noreturn]] inline void
+printErrMsgAbort(const std::string &kind, const std::string &msg, const std::source_location &loc)
 {
-  if (!cond) {
-    std::println("\n============== ASSERTION FAILED ==============\n");
-    std::println("Location: {} at {}", loc.file_name(), loc.line());
-    std::println("Function: {}", loc.function_name());
-    std::println("Message : {}", msg);
-    std::println("\n============== ASSERTION FAILED ==============\n");
-    std::abort();
-  }
+  std::println("\n============== {} ==============\n", kind);
+  std::println("Location: {} at {}", loc.file_name(), loc.line());
+  std::println("Function: {}", loc.function_name());
+  std::println("Message : {}", msg);
+  std::println("\n============== {} ==============\n", kind);
+  std::abort();
 }
 
+// 带信息的断言：仅在 Debug 模式下启用
 inline void
-expect(bool cond, std::string_view msg, const std::source_location &loc)
+assertWithMsg(bool cond, const std::string &msg, const std::source_location &loc)
 {
   if (!cond) {
-    std::println("\n============== EXPECT FAILED ==============\n");
-    std::println("Location: {} at {}", loc.file_name(), loc.line());
-    std::println("Function: {}", loc.function_name());
-    std::println("Message : {}", msg);
-    std::println("\n============== EXPECT FAILED ==============\n");
-    std::abort();
+    printErrMsgAbort("ASSERTION FAILED", msg, loc);
   }
 }
 
 // 致命错误：无条件终止
 [[noreturn]] inline void
-fatalError(std::string_view msg, const std::source_location& loc)
+fatalError(const std::string &msg, const std::source_location& loc)
 {
-  std::println("\n============== FATAL ERROR ==============\n");
-  std::println("Location: {} at {}", loc.file_name(), loc.line());
-  std::println("Function: {}", loc.function_name());
-  std::println("Message : {}", msg);
-  std::println("\n============== FATAL ERROR ==============\n");
-  std::abort();
+  printErrMsgAbort("FATAL ERROR", msg, loc);
 }
 
 } // namespace util
@@ -52,14 +40,8 @@ fatalError(std::string_view msg, const std::source_location& loc)
 #ifdef DEBUG
   #define ASSERT_MSG(cond, msg) \
     do { util::assertWithMsg((cond), (msg), std::source_location::current()); } while (0)
-
-  #define EXPECT(cond, msg) \
-    do { util::expect((cond), (msg), std::source_location::current()); } while (0)
 #else
   #define ASSERT_MSG(cond, msg) \
-    do { ((void)0); } while (0)
-
-  #define EXPECT(cond, msg) \
     do { ((void)0); } while (0)
 #endif
 

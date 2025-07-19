@@ -1,7 +1,5 @@
 #pragma once
 
-#include "ast.hpp"
-
 #ifdef DEBUG
 #include <print>
 #endif

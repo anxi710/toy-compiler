@@ -3,7 +3,6 @@
 #include <memory>
 #include <ranges>
 #include <vector>
-#include <sstream>
 #include <algorithm>
 
 #include "panic.hpp"
@@ -147,7 +146,7 @@ struct TupleType : Type {
       | std::views::transform([](const auto &type) {
           return type->str();
         })
-      | std::views::join_with(std::string_view{", "}) // join_with 是在两个元素之间插入分隔符！
+      | std::views::join_with(std::string{", "}) // join_with 是在两个元素之间插入分隔符！
       | std::ranges::to<std::string>();
 
     return "(" + inner + (etypes.size() == 1 ? "," : "") + ")";

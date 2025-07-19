@@ -1,204 +1,107 @@
 #pragma once
 
-#include <ranges>
+#include <memory>
 #include <vector>
 #include <variant>
+#include <optional>
 
-#include "position.hpp"
+#include "temp_factory.hpp"
 #include "type_factory.hpp"
-#include "symbol_table.hpp"
+
+namespace sym {
+
+struct Function;
+using FunctionPtr = std::shared_ptr<Function>;
+
+struct Value;
+using ValuePtr = std::shared_ptr<Value>;
+
+struct Constant;
+using ConstantPtr = std::shared_ptr<Constant>;
+
+class SymbolTable;
+
+} // namespace sym
 
 namespace sem {
 
 class SemanticContext {
 public:
-  sym::SymbolTable  &symtab;
-  type::TypeFactory  types;
-
-  // 当前函数上下文
-  sym::FunctionPtr curfunc;
-  int scopenum; // 函数内部子作用域个数
-
-  // 作用域上下文
   struct Scope {
     enum class Kind : std::uint8_t {
-      FUNC,
-      BLOCKEXPR,
-      IF,
-      LOOP,
-      FOR,
-      WHILE,
+      FUNC, BLOCKEXPR, IF, ELSE,
+      LOOP, FOR, WHILE,
     } kind;
     std::string name;
+    std::optional<sym::ValuePtr> val;
   };
-  Scope loopctx;
-  std::vector<Scope> scopestack;
 
 public:
   SemanticContext(sym::SymbolTable &symtab) : symtab(symtab) {}
 
 public:
   // utils
-  void enterFunc(const std::string &name, util::Position pos) {
-    curfunc = std::make_shared<sym::Function>();
-    // 注意：形参列表和返回类型此时还未设置！
-    curfunc->pos = pos;
-    curfunc->name = name;
+  void enterFunc(const std::string &name, util::Position pos);
+  void enterBlockExpr();
+  void enterIf();
+  void enterElse();
+  void enterLoop();
+  void enterFor();
+  void enterWhile();
 
-    symtab.declareFunc(name, curfunc);
-    symtab.enterScope(name, true);
-    scopenum = 0;
-    scopestack.emplace_back(Scope::Kind::FUNC, name);
-  }
+  void exitScope();
 
-  void enterBlockExpr() {
-    const std::string &name = std::format("L{}", ++scopenum);
-    symtab.enterScope(name, true);
-    scopestack.emplace_back(Scope::Kind::BLOCKEXPR, name);
-  }
-
-  void enterIf() {
-    const std::string &name = std::format("L{}", ++scopenum);
-    symtab.enterScope(name, true);
-    scopestack.emplace_back(Scope::Kind::IF, name);
-  }
-
-  void enterLoop() {
-    const std::string &name = std::format("L{}", ++scopenum);
-    symtab.enterScope(name, true);
-    scopestack.emplace_back(Scope::Kind::LOOP, name);
-  }
-
-  void enterFor() {
-    const std::string &name = std::format("L{}", ++scopenum);
-    symtab.enterScope(name, true);
-    scopestack.emplace_back(Scope::Kind::FOR, name);
-  }
-
-  void enterWhile() {
-    const std::string &name = std::format("L{}", ++scopenum);
-    symtab.enterScope(name, true);
-    scopestack.emplace_back(Scope::Kind::WHILE, name);
-  }
-
-  void exitScope() {
-    symtab.exitScope();
-    scopestack.pop_back();
-  }
-
-  auto lookupFunc(const std::string &name) const {
-    return symtab.lookupFunc(name);
-  }
-
-  auto lookupVal(const std::string &name) const {
-     return symtab.lookupVal(name);
-  }
-
-  auto lookupConst(const std::string &name) const {
-    return symtab.lookupConst(name);
-  }
+  auto lookupFunc(const std::string &name) const -> std::optional<sym::FunctionPtr>;
+  auto lookupVal(const std::string &name) const -> std::optional<sym::ValuePtr>;
+  auto lookupConst(const std::string &name) const -> std::optional<sym::ConstantPtr>;
 
   void declareArg(const std::string &name, bool mut,
-    type::TypePtr type, util::Position pos) {
-    auto arg = std::make_shared<sym::Variable>();
-    arg->pos    = pos;
-    arg->name   = name;
-    arg->mut    = mut;
-    arg->formal = true;
-    arg->init   = true;
-    arg->type   = std::move(type);
+    type::TypePtr type, util::Position pos);
+  auto declareVar(const std::string &name, bool mut, bool init,
+    type::TypePtr type, util::Position pos) -> sym::VariablePtr;
+  [[nodiscard]]
+  auto declareConst(std::variant<int, bool> val, util::Position pos) -> sym::ConstantPtr;
 
-    symtab.declareVal(name, arg);
-    curfunc->argv.push_back(arg);
-  }
+  auto produceArrType(int size, type::TypePtr etype) -> type::TypePtr;
+  auto produceTupType(std::vector<type::TypePtr> etypes) -> type::TypePtr;
 
-  void declareVal(const std::string &name, bool mut, bool init,
-    type::TypePtr type, util::Position pos) {
-    auto val = std::make_shared<sym::Variable>();
-    val->pos    = pos;
-    val->name   = name;
-    val->mut    = mut;
-    val->init   = init;
-    val->formal = false;
-    val->type   = std::move(type);
+  void resetTempCnt();
+  auto produceTemp(util::Position pos, type::TypePtr type) -> sym::TempPtr;
 
-    symtab.declareVal(name, val);
-  }
+  void setRetValType(type::TypePtr type);
+  auto checkAutoTypeInfer() const -> std::vector<sym::ValuePtr>;
 
-  [[nodiscard]] sym::ConstantPtr declareConst(std::variant<int, bool> val, util::Position pos) {
-    std::string name;
-    type::TypePtr type;
-    if (std::holds_alternative<int>(val)) {
-      name = std::to_string(std::get<int>(val));
-      type = type::TypeFactory::INT_TYPE;
-    } else if (std::holds_alternative<bool>(val)) {
-      if (std::get<bool>(val)) {
-        name = "true";
-      } else {
-        name = "false";
-      }
-      type = type::TypeFactory::BOOL_TYPE;
-    }
+  bool inLoopCtx();
+  auto getLoopCtx() -> std::optional<Scope*>;
 
-    if (auto opt_const = lookupConst(name); opt_const.has_value()) {
-      return opt_const.value();
-    }
+  auto getCurScope() const -> Scope;
+  auto getIfScope() const -> std::optional<Scope>;
+  void exitCtxScope();
+  void exitSymtabScope();
 
-    auto constant = std::make_shared<sym::Constant>();
-    constant->pos = pos;
-    constant->mut = false;
-    constant->init = true;
-    constant->name = name;
-    constant->type = type;
+  void setCurCtxSymbol(sym::ValuePtr val);
 
-    symtab.declareConst(name, constant);
+  auto getCurFuncName() const -> std::string;
+  auto getCurFuncType() const -> const type::TypePtr&;
 
-    return constant;
-  }
+  auto getCurScopeName() const -> std::string;
 
-  void setRetValType(type::TypePtr type) {
-    curfunc->type = std::move(type);
-  }
+  auto getCurCtxName() const -> std::string;
 
-  // void setVarType(const std::string &name, type::TypePtr type) {
-  //   auto opt_var = symtab.lookupVal(name);
-  //   ASSERT_MSG(
-  //     opt_var.has_value(),
-  //     "variable must be declared"
-  //   );
-  // }
+private:
+  void enterScope(Scope::Kind kind);
 
-  bool inLoopCtx() {
-    for (const auto &scope : std::views::reverse(scopestack)) {
-      if (scope.kind == Scope::Kind::LOOP ||
-          scope.kind == Scope::Kind::WHILE ||
-          scope.kind == Scope::Kind::FOR) {
-        loopctx = scope;
-        return true;
-      }
-    }
-    return false;
-  }
+private:
+  sym::SymbolTable  &symtab;
+  type::TypeFactory  type_factory;
+  ir::TempFactory    temp_factory;
 
-  std::optional<Scope> getLoopCtx() {
-    for (const auto &scope : std::views::reverse(scopestack)) {
-      if (scope.kind == Scope::Kind::LOOP ||
-          scope.kind == Scope::Kind::WHILE ||
-          scope.kind == Scope::Kind::FOR) {
-        return scope;
-      }
-    }
-    return std::nullopt;
-  }
+  // 当前函数上下文
+  sym::FunctionPtr curfunc;
+  int scopenum = 0; // 函数内部子作用域个数
 
-  auto checkAutoTypeInfer() const {
-    return symtab.checkAutoTypeInfer();
-  }
-
-  auto getCurScopeName() const {
-    std::string str = "global::";
-    return symtab.getCurScopeName().substr(str.length());
-  }
+  // 作用域上下文
+  std::vector<Scope> scopestack;
 };
 
 } // namespace sem

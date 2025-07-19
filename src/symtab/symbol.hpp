@@ -69,7 +69,7 @@ struct Variable : Value {
     return false;
   }
 };
-using VariabelPtr = std::shared_ptr<Variable>;
+using VariablePtr = std::shared_ptr<Variable>;
 
 struct Constant : Value {
   std::variant<int, bool> val;

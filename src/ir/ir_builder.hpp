@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ast.hpp"
+#include "temp_factory.hpp"
 #include "crtp_visitor.hpp"
 #include "semantic_context.hpp"
 
@@ -58,8 +60,6 @@ public:
 
 private:
   sem::SemanticContext &ctx;
-
-  int tmpcnt = 0;
 };
 
 } // namespace ir

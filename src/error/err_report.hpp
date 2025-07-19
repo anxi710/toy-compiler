@@ -31,6 +31,9 @@ public:
   [[nodiscard]] bool hasErrs() const;
 
 private:
+  void displaySrc(const util::Position &pos) const;
+
+private:
   std::vector<std::string> text; // 输入文件原始文本
   std::vector<ErrPtr>      errs; // 错误列表
 };

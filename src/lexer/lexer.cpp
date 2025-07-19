@@ -4,7 +4,6 @@
 
 #include "lexer.hpp"
 #include "token.hpp"
-#include "err_type.hpp"
 #include "err_report.hpp"
 
 namespace lex {
@@ -178,17 +177,17 @@ std::optional<Token>
 Lexer::nextToken()
 {
   // 检测当前是否已经到达结尾
-  if (this->pos.row >= this->text.size()) {
-    return Token{TokenType::END, "#", this->pos};
+  if (pos.row >= text.size()) {
+    return Token{TokenType::END, "#", pos};
   }
 
   // 忽略所有空白字符
-  while (this->pos.row < this->text.size()) {
-    if (this->text[this->pos.row].empty()) { // 忽略空行
-      ++this->pos.row;
-      this->pos.col = 0;
+  while (pos.row < text.size()) {
+    if (text[pos.row].empty()) { // 忽略空行
+      ++pos.row;
+      pos.col = 0;
     } else if ( // 忽略空白字符
-      static_cast<bool>(std::isspace(this->text[this->pos.row][this->pos.col]))
+      static_cast<bool>(std::isspace(text[pos.row][pos.col]))
     ) {
       shiftPos(1);
     } else {
@@ -197,12 +196,12 @@ Lexer::nextToken()
   } // end of while
 
   // 再次判断是否到结尾
-  if (this->pos.row >= this->text.size()) {
-    return Token{TokenType::END, "#", this->pos};
+  if (pos.row >= text.size()) {
+    return Token{TokenType::END, "#", pos};
   }
 
   // 使用正则表达式识别 INT、ID
-  std::string view{this->text[this->pos.row].substr(this->pos.col)};
+  std::string view{text[pos.row].substr(pos.col)};
   auto token = matchThroughRE(view);
   if (token.has_value()) {
     return token;
@@ -214,13 +213,13 @@ Lexer::nextToken()
     return token;
   }
 
-  util::Position pos = this->pos;
+  auto errpos = pos;
   shiftPos(1);
 
   reporter.report(
     err::LexErrType::UNKNOWN_TOKEN,
     std::format("识别到未知的 token: {}", view.substr(0, 1)),
-    pos, view.substr(0, 1)
+    errpos, view.substr(0, 1)
   );
 
   return std::nullopt;

@@ -281,7 +281,7 @@ Parser::parseType()
     consume(TokenType::INT, "Expect <NUM>");
     consume(TokenType::RBRACK, "Expect ']'");
 
-    type.type = builder.ctx->types.getArray(size, etype);
+    type.type = builder.ctx->produceArrType(size, etype);
     return type;
   }
 
@@ -318,7 +318,7 @@ Parser::parseType()
     }
     if (is_tuple) {
       // ( Type , (Type (, Type)*)? )
-      type.type = builder.ctx->types.getTuple(etypes);
+      type.type = builder.ctx->produceTupType(etypes);
       return type;
     }
     // ( Type )
@@ -541,9 +541,7 @@ Parser::parseExpr()
         }
       }
     } // end if
-  } else if (check(TokenType::INT)
-    || check(TokenType::LPAREN)
-    || check(TokenType::LBRACK)
+  } else if (check(TokenType::INT) || check(TokenType::LPAREN) || check(TokenType::LBRACK)
   ) {
     expr = parseCmpExpr();
   } else {
@@ -648,8 +646,6 @@ Parser::parseAssignElem(std::optional<ast::ExprPtr> val)
   //             | ArrAcc
   //             | TupAcc
 
-  util::Position pos = cur.pos;
-
   if (check(TokenType::ID) && checkAhead(TokenType::ASSIGN)) {
     // Variable -> <ID>
     // NOTE: 在设计中，并不会直接使用到这部分逻辑！
@@ -734,14 +730,20 @@ Parser::parseArrAcc(ast::ExprPtr val)
 ast::TupAccPtr
 Parser::parseTupAcc(ast::ExprPtr val)
 {
-  // TupAcc -> Value . <NUM>
+  // TupAcc -> Value . Number
 
   util::Position pos = cur.pos;
   consume(TokenType::DOT, "Expect '.'");
 
-  int idx = 0;
+  // Number -> <NUM>
+  ast::NumberPtr idx = nullptr;
+  util::Position idxpos = cur.pos;
   if (check(TokenType::INT)) {
-    idx = std::stoi(cur.value); // 避免转换错误！
+    idx = std::make_shared<ast::Number>(std::stoi(cur.value));
+    idx->pos = idxpos;
+    builder.build(*idx);
+  } else {
+    // TODO: Error!
   }
   consume(TokenType::INT, "Expect <NUM>");
 
@@ -1158,6 +1160,7 @@ Parser::parseIfExpr()
 
   ast::ExprPtr cond = parseExpr();
   ast::StmtBlockExprPtr body;
+  sym::TempPtr temp_val = nullptr;
   if (!check(TokenType::LBRACE)) {
     // TODO: 缺少一个 body!
     std::println(stderr, "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件");
@@ -1167,7 +1170,13 @@ Parser::parseIfExpr()
   } else {
     builder.ctx->enterIf();
     body = parseStmtBlockExpr();
-    builder.ctx->exitScope();
+
+    if (body->type.type != type::TypeFactory::UNIT_TYPE) {
+      temp_val = builder.ctx->produceTemp(pos, body->type.type);
+      builder.ctx->setCurCtxSymbol(temp_val);
+    }
+
+    builder.ctx->exitSymtabScope();
   }
 
   // ElseClause -> else if Expr StmtBlockExpr ElseClause
@@ -1184,8 +1193,14 @@ Parser::parseIfExpr()
 
   auto iexpr = std::make_shared<ast::IfExpr>(cond, body, elses);
   iexpr->is_ctlflow = true;
+  if (temp_val != nullptr) {
+    iexpr->symbol = temp_val;
+  }
   iexpr->pos = pos;
   builder.build(*iexpr);
+
+  builder.ctx->exitCtxScope();
+
   return iexpr;
 }
 
@@ -1211,20 +1226,21 @@ Parser::parseElseClause()
       std::vector<ast::StmtPtr> stmts{};
       body = std::make_shared<ast::StmtBlockExpr>(stmts);
     } else {
-      builder.ctx->enterIf();
+      builder.ctx->enterElse();
       body = parseStmtBlockExpr();
-      builder.ctx->exitScope();
+      builder.ctx->exitSymtabScope();
     }
   } else {
     // StmtBlockExpr
-    builder.ctx->enterIf();
+    builder.ctx->enterElse();
     body = parseStmtBlockExpr();
-    builder.ctx->exitScope();
+    builder.ctx->exitSymtabScope();
   }
 
   auto eclause = std::make_shared<ast::ElseClause>(cond, body);
   eclause->pos = pos;
   builder.build(*eclause);
+  builder.ctx->exitCtxScope();
   return eclause;
 }
 
@@ -1237,6 +1253,9 @@ Parser::parseWhileLoopExpr()
   consume(TokenType::WHILE, "Expect 'while'");
 
   ast::ExprPtr cond = parseExpr();
+
+  builder.ctx->enterWhile();
+
   ast::StmtBlockExprPtr body;
   if (!check(TokenType::LBRACE)) {
     // TODO: 缺少一个 body!
@@ -1245,15 +1264,14 @@ Parser::parseWhileLoopExpr()
     std::vector<ast::StmtPtr> stmts{};
     body = std::make_shared<ast::StmtBlockExpr>(stmts);
   } else {
-    builder.ctx->enterWhile();
     body = parseStmtBlockExpr();
-    builder.ctx->exitScope();
   }
 
   auto wlexpr = std::make_shared<ast::WhileLoopExpr>(cond, body);
   wlexpr->is_ctlflow = true;
   wlexpr->pos = pos;
   builder.build(*wlexpr);
+  builder.ctx->exitScope();
   return wlexpr;
 }
 
@@ -1267,6 +1285,14 @@ Parser::parseForLoopExpr()
 
   auto [mut, name, varpos] = parseInnerVarDecl();
 
+  builder.ctx->enterFor();
+  // 这里简单的将迭代器的类型认为是 i32
+  // 实际类型应该由可迭代对象的元素的类型确定
+  auto var = builder.ctx->declareVar(
+    name, mut, true, type::TypeFactory::INT_TYPE, varpos
+  );
+  builder.ctx->setCurCtxSymbol(var);
+
   consume(TokenType::IN, "Expect 'in'");
 
   ast::ExprPtr iter = parseIterable();
@@ -1278,22 +1304,14 @@ Parser::parseForLoopExpr()
     std::vector<ast::StmtPtr> stmts{};
     body = std::make_shared<ast::StmtBlockExpr>(stmts);
   } else {
-    builder.ctx->enterFor();
-
-    // 这里简单的将迭代器的类型认为是 i32
-    // 实际类型应该由可迭代对象的元素的类型确定
-    builder.ctx->declareVal(
-      name, mut, true, type::TypeFactory::INT_TYPE, varpos
-    );
-
     body = parseStmtBlockExpr();
-    builder.ctx->exitScope();
   }
 
   auto flexpr = std::make_shared<ast::ForLoopExpr>(mut, name, iter, body);
   flexpr->is_ctlflow = true;
   flexpr->pos = pos;
   builder.build(*flexpr);
+  builder.ctx->exitScope();
   return flexpr;
 }
 
@@ -1333,12 +1351,12 @@ Parser::parseLoopExpr()
 
   builder.ctx->enterLoop();
   auto block = parseStmtBlockExpr();
-  builder.ctx->exitScope();
 
   auto lexpr = std::make_shared<ast::LoopExpr>(block);
   lexpr->is_ctlflow = true;
   lexpr->pos = pos;
   builder.build(*lexpr);
+  builder.ctx->exitScope();
   return lexpr;
 }
 
