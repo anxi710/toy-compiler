@@ -80,38 +80,19 @@ Lexer::matchThroughDFA(const std::string &view)
   // 检测算符和标点符号
   Token token{}; // 识别到的词法单元
   switch (fchar) {
-    default:
-      break;
-    case '(':
-      token = {TokenType::LPAREN, "("};
-      break;
-    case ')':
-      token = {TokenType::RPAREN, ")"};
-      break;
-    case '{':
-      token = {TokenType::LBRACE, "{"};
-      break;
-    case '}':
-      token = {TokenType::RBRACE, "}"};
-      break;
-    case '[':
-      token = {TokenType::LBRACK, "["};
-      break;
-    case ']':
-      token = {TokenType::RBRACK, "]"};
-      break;
-    case ';':
-      token = {TokenType::SEMICOLON, ";"};
-      break;
-    case ':':
-      token = {TokenType::COLON, ":"};
-      break;
-    case ',':
-      token = {TokenType::COMMA, ","};
-      break;
-    case '+':
-      token = {TokenType::PLUS, "+"};
-      break;
+    default: break;
+    case '(': token = {TokenType::LPAREN,    "("}; break;
+    case ')': token = {TokenType::RPAREN,    ")"}; break;
+    case '{': token = {TokenType::LBRACE,    "{"}; break;
+    case '}': token = {TokenType::RBRACE,    "}"}; break;
+    case '[': token = {TokenType::LBRACK,    "["}; break;
+    case ']': token = {TokenType::RBRACK,    "]"}; break;
+    case ';': token = {TokenType::SEMICOLON, ";"}; break;
+    case ':': token = {TokenType::COLON,     ":"}; break;
+    case ',': token = {TokenType::COMMA,     ","}; break;
+    case '+': token = {TokenType::PLUS,      "+"}; break;
+    case '*': token = {TokenType::MUL,       "*"}; break;
+    case '/': token = {TokenType::DIV,       "/"}; break;
     case '=':
       if (schar == '=') {
         token = {TokenType::EQ, "=="};
@@ -125,12 +106,6 @@ Lexer::matchThroughDFA(const std::string &view)
       } else {
         token = {TokenType::MINUS, "-"};
       }
-      break;
-    case '*':
-      token = {TokenType::MUL, "*"};
-      break;
-    case '/':
-      token = {TokenType::DIV, "/"};
       break;
     case '>':
       if (schar == '=') {

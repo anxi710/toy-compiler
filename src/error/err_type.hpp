@@ -20,27 +20,32 @@ enum class ParErrType : std::uint8_t {
   UNEXPECT_TOKEN, // 并非期望 token
 };
 
+#define SEMANTIC_ERROR_LIST(_) \
+  _(MISSING_RETVAL, "MissingReturnValue", "函数有返回值但未返回任何值") \
+  _(TYPE_INFER_FAILURE, "TypeInferenceFailure", "变量无法通过自动类型推导确定类型") \
+  _(TYPE_MISMATCH, "TypeMismatch", "变量类型不匹配") \
+  _(UNEXPECTED_EXPR_TYPE, "UnexpectedExprType", "意料之外的表达式类型") \
+  _(BREAK_CTX_ERROR, "BreakContextError", "break 所处上下文有误") \
+  _(BREAK_TYPE_MISMATCH, "BreakTypeMismatch", "break 返回的表达式的类型与推导不一致") \
+  _(CONTINUE_CTX_ERROR, "ContinueContextError", "continue 所处上下文有误") \
+  _(UNDECLARED_VAR, "UndeclaredVariable", "变量未声明") \
+  _(OUT_OF_BOUNDS_ACCESS, "OutOfBoundsAccess", "访问越界") \
+  _(ASSIGN_IMMUTABLE, "AssignImmutable", "赋值表达式左值不可变") \
+  _(ASSIGN_MISMATCH, "AssignMismatch", "赋值表达式左右值类型不匹配") \
+  _(INCOMPARABLE_TYPES, "IncomparableTypes", "左值和右值的类型不可比较") \
+  _(NON_COMPUTABLE_TYPES, "Non-ComputableTypes", "左值和右值的类型不可进行算术运算") \
+  _(RETTYPE_MISMATCH, "FuncReturnMismatch", "函数返回值类型不匹配") \
+  _(CALL_UNDECLARED_FUNC, "UndefinedFunction", "函数未定义") \
+  _(ARG_CNT_MISMATCH, "ArgMismatch", "函数参数个数不匹配") \
+  _(ARG_TYPE_MISMATCH, "ArgTypeMismatch", "函数参数类型不匹配") \
+  _(MISSING_ELSE, "MissingElse", "if 表达式缺少 else 分支") \
+  _(UNINITIALIZED_VAR, "UninitializedVariable", "变量未初始化")
+
 // 语义错误码
 enum class SemErrType : std::uint8_t {
-  MISSING_RETVAL,        // 函数缺少返回值
-  TYPE_INFER_FAILURE,    // 变量无法通过自动类型推导确定类型
-  TYPE_MISMATCH,         // 类型不匹配
-  UNEXPECTED_EXPR_TYPE,  // 意料之外的表达式类型
-  BREAK_CTX_ERROR,       // break 所在上下文有误
-  BREAK_TYPE_MISMATCH,   // break 返回的值的类型不一致
-  CONTINUE_CTX_ERROR,    // continue 表达式所在上下文有误
-  UNDECLARED_VAR,        // 变量未声明
-  OUTOFBOUNDS_ACCESS,    // 访问越界
-  ASSIGN_IMMUTABLE,      // 赋值表达式左值不可变
-  ASSIGN_MISMATCH,       // 左值和右值类型不匹配
-  INCOMPARABLE_TYPES,    // 两值的类型不可比较
-  UNCOMPUTABLE_TYPES,    // 两值的类型不可进行算术运算
-  RETTYPE_MISMATCH,      // 函数返回值类型错误
-  CALL_UNDECLARED_FUNC,  // 调用未声明函数
-  ARG_CNT_MISMATCH,      // 参数数量不匹配
-  ARG_TYPE_MISMATCH,     // 参数类型不匹配
-  MISSING_ELSE,          // 缺少 else 分支
-  UNINITIALIZED_VAR,     // 变量未初始化
+#define DEFINE_ENUM(name, _, __) name,
+  SEMANTIC_ERROR_LIST(DEFINE_ENUM)
+#undef DEFINE_ENUM
 };
 
 struct Err {

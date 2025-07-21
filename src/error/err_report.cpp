@@ -14,6 +14,11 @@ static inline constexpr std::string RED    = "\033[1;31m";
 static inline constexpr std::string BLUE   = "\033[1;34m";
 static inline constexpr std::string YELLOW = "\033[1;33m";
 
+/**
+ * @brief 打印指定位置处的源代码
+ *
+ * @param pos 指定的位置
+ */
 void
 ErrReporter::displaySrc(const util::Position &pos) const
 {
@@ -110,101 +115,9 @@ std::pair<std::string, std::string>
 displaySemErrType(SemErrType type)
 {
   switch (type) {
-    case SemErrType::MISSING_RETVAL:
-      return {
-        "MissingReturnValue",
-        "函数有返回值但未返回任何值"
-      };
-    case SemErrType::TYPE_INFER_FAILURE:
-      return {
-        "TypeInferenceFailure",
-        "变量无法通过自动类型推导确定类型"
-      };
-    case SemErrType::TYPE_MISMATCH:
-      return {
-        "TypeMismatch",
-        "变量类型不匹配"
-      };
-    case SemErrType::UNEXPECTED_EXPR_TYPE:
-      return {
-        "UnexpectedExprType",
-        "意料之外的表达式类型"
-      };
-    case SemErrType::BREAK_CTX_ERROR:
-      return {
-        "BreakContextError",
-        "break 所处上下文有误"
-      };
-    case SemErrType::BREAK_TYPE_MISMATCH:
-      return {
-        "BreakTypeMismatch",
-        "break 返回的表达式的类型与推导不一致"
-      };
-    case SemErrType::CONTINUE_CTX_ERROR:
-      return {
-        "ContinueContextError",
-        "continue 所处上下文有误"
-      };
-    case SemErrType::UNDECLARED_VAR:
-      return {
-        "UndeclaredVariable",
-        "变量未声明"
-      };
-    case SemErrType::OUTOFBOUNDS_ACCESS:
-      return {
-        "OutOfBoundsAccess",
-        "访问越界"
-      };
-    case SemErrType::ASSIGN_IMMUTABLE:
-      return {
-        "AssignImmutable",
-        "赋值表达式左值不可变"
-      };
-    case SemErrType::ASSIGN_MISMATCH:
-      return {
-        "AssignMismatch",
-        "赋值表达式左右值类型不匹配"
-      };
-    case SemErrType::INCOMPARABLE_TYPES:
-      return {
-        "IncomparableTypes",
-        "左值和右值的类型不可比较"
-      };
-    case SemErrType::UNCOMPUTABLE_TYPES:
-      return {
-        "UncomputableTypes",
-        "左值和右值的类型不可进行算术运算"
-      };
-    case SemErrType::RETTYPE_MISMATCH:
-      return {
-        "FuncReturnMismatch",
-        "函数返回值类型不匹配"
-      };
-    case SemErrType::CALL_UNDECLARED_FUNC:
-      return {
-        "UndefinedFunction",
-        "函数未定义"
-      };
-    case SemErrType::ARG_CNT_MISMATCH:
-      return {
-        "ArgMismatch",
-        "函数参数个数不匹配"
-      };
-    case SemErrType::ARG_TYPE_MISMATCH:
-      return {
-        "ArgTypeMismatch",
-        "函数参数类型不匹配"
-      };
-    case SemErrType::MISSING_ELSE:
-      return {
-        "MissignElse",
-        "if 表达式缺少 else 分支"
-      };
-    case SemErrType::UNINITIALIZED_VAR:
-      return {
-        "UninitializedVariable",
-        "变量未初始化"
-      };
+#define CASE_ERR(name, en_msg, zh_msg) case SemErrType::name: return {en_msg, zh_msg};
+    SEMANTIC_ERROR_LIST(CASE_ERR)
+#undef CASE_ERR
   }
 }
 

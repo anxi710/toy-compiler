@@ -16,24 +16,21 @@ using TypePtr = std::shared_ptr<Type>;
 
 } // namespace type
 
-namespace util {
-
-struct Position;
-
-} // namespace util
+namespace util { struct Position; }
 
 namespace ir {
 
 class TempFactory {
 public:
-  ~TempFactory() = default;
+  /**
+   * @brief 重置临时变量计数器
+   */
+  void resetCnt() { cnt = 0; }
 
-public:
-  void reset();
-  sym::TempPtr produce(util::Position pos, type::TypePtr type);
+  auto produce(util::Position pos, type::TypePtr type) -> sym::TempPtr;
 
 private:
-  int cnt = 0;
+  int cnt = 0; // temp counter
 };
 
 } // namespace ir

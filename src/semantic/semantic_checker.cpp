@@ -1,3 +1,25 @@
+/**
+ * @file semantic_checker.cpp
+ * @brief Implements semantic analysis and type checking for AST nodes in the toy compiler.
+ *
+ * This file contains the implementation of the SemanticChecker class and its associated
+ * visit methods for various AST node types. The semantic checker is responsible for:
+ *   - Ensuring variables are declared and initialized before use.
+ *   - Enforcing type correctness for expressions, assignments, function calls, and control flow.
+ *   - Checking for correct usage of control flow constructs (if, while, for, loop, break, continue).
+ *   - Handling type inference for variables and expressions.
+ *   - Reporting semantic errors with precise diagnostic information.
+ *
+ * Each visit method implements the semantic rules for a specific AST node type, as described
+ * in the comments within each function. The checker uses a context object to track scope,
+ * variable mutability, initialization state, and function/loop context.
+ *
+ * Error reporting is performed via the reporter object, which provides detailed messages
+ * including error type, description, source position, and scope information.
+ *
+ * @note The file assumes that AST nodes and type system utilities are defined elsewhere.
+ * @author anxi
+ */
 #include <ranges>
 #include <cassert>
 
@@ -133,35 +155,35 @@ SemanticChecker::visit(ast::EmptyStmt &estmt)
 void
 SemanticChecker::visit(ast::VarDeclStmt &vdstmt)
 {
-  auto value = vdstmt.value.value_or(nullptr);
+  auto rval = vdstmt.rval.value_or(nullptr);
   if (vdstmt.vartype.type != type::TypeFactory::UNKNOWN_TYPE) {
     // let (mut)? <ID> : Type ;
-    if (value && vdstmt.vartype != value->type) {
+    if (rval && vdstmt.vartype != rval->type) {
       // let (mut)? <ID> : Type = Expr ;
       reporter.report(
         err::SemErrType::TYPE_MISMATCH,
         std::format(
           "表达式的类型 {} 和变量 {} 声明的类型 {} 不一致",
-          value->type.str(),
+          rval->type.str(),
           vdstmt.name,
           vdstmt.vartype.str()
         ),
-        value->pos,
+        rval->pos,
         ctx.getCurScopeName()
       );
     }
-  } else if (value) {
+  } else if (rval) {
     // let (mut)? <ID> = Expr ;
     // Type Inference
-    vdstmt.vartype = inferType(value->type);
+    vdstmt.vartype = inferType(rval->type);
   }
 
-  bool init = vdstmt.value.has_value();
+  bool init = vdstmt.rval.has_value();
   ctx.declareVar(vdstmt.name, vdstmt.mut, init, vdstmt.vartype.type, vdstmt.pos);
 
-  if (value && value->is_var) {
+  if (rval && rval->is_var) {
     // 如果用于初始化的表达式是一个变量，则去检查该变量是否已经初始化
-    checkInit(*value);
+    checkInit(*rval);
   }
 
   vdstmt.type = ast::Type{type::TypeFactory::UNIT_TYPE}; // 变量声明语句使用的是副作用！！！
@@ -271,7 +293,7 @@ SemanticChecker::visit(ast::BreakExpr &bexpr)
       checkInit(*value); // 检查该变量是否已经初始化
     }
 
-    auto loopctx = ctx.getLoopCtx().value_or(nullptr);
+    auto *loopctx = ctx.getLoopCtx().value_or(nullptr);
     ASSERT_MSG(loopctx, "must in loop context");
 
     if (loopctx->kind != SemanticContext::Scope::Kind::LOOP) {
@@ -341,21 +363,21 @@ void
 SemanticChecker::visit(ast::ArrAcc &aacc)
 {
   // 检查数组访问对象是否初始化
-  if (aacc.value->is_var) {
-    checkInit(*aacc.value);
+  if (aacc.base->is_var) {
+    checkInit(*aacc.base);
   }
 
   // 检查数组访问对象是否是一个数组类型，并检查索引是否是一个 i32
-  type::TypePtr arr_type = aacc.value->type.type;
+  type::TypePtr arr_type = aacc.base->type.type;
   if (!type::TypeFactory::isArray(arr_type)) {
     // 对象不是 array type
     reporter.report(
       err::SemErrType::TYPE_MISMATCH,
       std::format(
         "数组访问对象是 {} 类型不是数组类型",
-        aacc.value->type.str()
+        aacc.base->type.str()
       ),
-      aacc.value->pos,
+      aacc.base->pos,
       ctx.getCurScopeName()
     );
 
@@ -380,7 +402,7 @@ SemanticChecker::visit(ast::ArrAcc &aacc)
   } else {
     // everything is normal~
     aacc.type = ast::Type{arr_type->getElemType()};
-    aacc.res_mut = aacc.value->res_mut;
+    aacc.res_mut = aacc.base->res_mut;
   }
 }
 
@@ -388,22 +410,22 @@ void
 SemanticChecker::visit(ast::TupAcc &tacc)
 {
   // 检查元组访问对象是否初始化
-  if (tacc.value->is_var) {
-    checkInit(*tacc.value);
+  if (tacc.base->is_var) {
+    checkInit(*tacc.base);
   }
 
   // 检查元组访问对象是否是一个元组类型，并检查元组访问是否越界
   //   Tips: 元组访问越界可以在编译期确定，
   //   因为元组访问是通过给定 number 进行的，
   //   而不支持动态计算索引
-  type::TypePtr tuple_type = tacc.value->type.type;
+  type::TypePtr tuple_type = tacc.base->type.type;
   if (!type::TypeFactory::isTuple(tuple_type)) {
     // 元组访问对象不是元组类型
     reporter.report(
       err::SemErrType::TYPE_MISMATCH,
       std::format(
         "元组访问对象是 {} 类型不是元组类型",
-        tacc.value->type.str()
+        tacc.base->type.str()
       ),
       tacc.pos,
       ctx.getCurScopeName()
@@ -413,7 +435,7 @@ SemanticChecker::visit(ast::TupAcc &tacc)
   } else if (tacc.idx->value < 0 || tacc.idx->value > tuple_type->size()) {
     // 元组访问越界
     reporter.report(
-      err::SemErrType::OUTOFBOUNDS_ACCESS,
+      err::SemErrType::OUT_OF_BOUNDS_ACCESS,
       std::format(
         "合法的元组访问区间为 0 ~ {}，但试图访问的索引为 {}",
         tuple_type->size() - 1,
@@ -426,7 +448,7 @@ SemanticChecker::visit(ast::TupAcc &tacc)
     tacc.res_mut = true; // 避免报错过多
   } else {
     tacc.type = ast::Type{tuple_type->getElemType(tacc.idx->value)};
-    tacc.res_mut = tacc.value->res_mut;
+    tacc.res_mut = tacc.base->res_mut;
   }
 }
 
@@ -435,13 +457,13 @@ SemanticChecker::visit(ast::AssignElem &aelem)
 {
   if (aelem.kind == ast::AssignElem::Kind::VARIABLE) {
     aelem.is_var = true;
-    aelem.symbol = aelem.value->symbol;
+    aelem.symbol = aelem.base->symbol;
   } else {
     aelem.is_var = false;
   }
 
-  aelem.type = aelem.value->type;
-  aelem.res_mut = aelem.value->res_mut;
+  aelem.type = aelem.base->type;
+  aelem.res_mut = aelem.base->res_mut;
 }
 
 void
@@ -555,7 +577,7 @@ SemanticChecker::visit(ast::AriExpr &aexpr)
     || aexpr.rhs->type != ast::Type{type::TypeFactory::INT_TYPE})
   {
     reporter.report(
-      err::SemErrType::UNCOMPUTABLE_TYPES,
+      err::SemErrType::NON_COMPUTABLE_TYPES,
       std::format(
         "{} 和 {} 不可进行算术运算",
         aexpr.lhs->type.str(),
@@ -850,35 +872,35 @@ SemanticChecker::visit(ast::ForLoopExpr &flexpr)
 }
 
 void
-SemanticChecker::visit(ast::Interval &interval)
+SemanticChecker::visit(ast::RangeExpr &range_expr)
 {
-  if (interval.start->is_var) {
-    checkInit(*interval.start); // 检查变量是否初始化
+  if (range_expr.start->is_var) {
+    checkInit(*range_expr.start); // 检查变量是否初始化
   }
-  if (interval.end->is_var) {
-    checkInit(*interval.end); // 检查变量是否初始化
+  if (range_expr.end->is_var) {
+    checkInit(*range_expr.end); // 检查变量是否初始化
   }
 
-  // 区间端点应该是 i32 类型的值
-  if (interval.start->type.type != type::TypeFactory::INT_TYPE) {
+  // 范围表达式端点应该是 i32 类型的值
+  if (range_expr.start->type.type != type::TypeFactory::INT_TYPE) {
     reporter.report(
       err::SemErrType::UNEXPECTED_EXPR_TYPE,
       std::format(
-        "区间起始值期望类型为 i32，但实际为 {}",
-        interval.start->type.str()
+        "范围表达式起始值期望类型为 i32，但实际为 {}",
+        range_expr.start->type.str()
       ),
-      interval.start->pos,
+      range_expr.start->pos,
       ctx.getCurScopeName()
     );
   }
-  if (interval.end->type.type != type::TypeFactory::INT_TYPE) {
+  if (range_expr.end->type.type != type::TypeFactory::INT_TYPE) {
     reporter.report(
       err::SemErrType::UNEXPECTED_EXPR_TYPE,
       std::format(
-        "区间终止值望类型为 i32，但实际为 {}",
-        interval.end->type.str()
+        "范围表达式终止值望类型为 i32，但实际为 {}",
+        range_expr.end->type.str()
       ),
-      interval.end->pos,
+      range_expr.end->pos,
       ctx.getCurScopeName()
     );
   }
@@ -939,7 +961,7 @@ SemanticChecker::visit(ast::LoopExpr &lexpr)
   } // end if
 
   if (lexpr.type.type != type::TypeFactory::UNIT_TYPE) {
-    auto loopctx = ctx.getLoopCtx().value_or(nullptr);
+    auto *loopctx = ctx.getLoopCtx().value_or(nullptr);
     ASSERT_MSG(loopctx, "don't in loop ctx");
     ASSERT_MSG(loopctx->val.has_value(), "didn't allocate temp value");
     lexpr.symbol = loopctx->val.value();

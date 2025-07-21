@@ -12,9 +12,6 @@ struct Position {
 
   Position() = default;
   Position(std::size_t r, std::size_t c) : row(r), col(c) {}
-  Position(const Position &other) = default;
-
-  Position& operator=(const Position &rhs) = default;
   Position operator+(const Position &rhs) const {
     return {row + rhs.row, col + rhs.col};
   }
@@ -30,7 +27,7 @@ namespace std {
 template<>
 struct formatter<util::Position> : formatter<std::string> {
   auto format(const util::Position &pos, format_context &ctx) const {
-    return std::formatter<std::string>::format(
+    return formatter<std::string>::format(
       std::format("(row: {}, col: {})", pos.row, pos.col), ctx
     );
   }

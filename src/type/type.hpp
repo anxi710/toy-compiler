@@ -1,3 +1,54 @@
+/**
+ * @file type.hpp
+ * @brief Defines the type system for the toy compiler, including basic and composite types.
+ *
+ * This header provides the core type representations used in the compiler's type system.
+ * It includes definitions for primitive types (i32, bool, unit), composite types (array, tuple),
+ * as well as special types (unknown, any). Each type is represented as a class derived from the
+ * abstract base class `Type`, which provides common interfaces for type information and operations.
+ *
+ * @namespace type
+ *   Contains all type-related definitions and utilities.
+ *
+ * @enum TypeKind
+ *   Enumerates the kinds of types supported, including basic, composite, and special types.
+ *
+ * @enum RefKind
+ *   Enumerates the kinds of references (normal, mutable, immutable) for type qualifiers.
+ *
+ * @struct Type
+ *   Abstract base class for all types. Provides interfaces for type kind, reference kind,
+ *   memory size, iterability, string representation, and element access for composite types.
+ *
+ * @struct AnyType
+ *   Represents a type that matches any other type (used for generic or placeholder purposes).
+ *
+ * @struct UnknownType
+ *   Represents an unknown type, typically used during type inference or error recovery.
+ *
+ * @struct UnitType
+ *   Represents the unit type, analogous to void or () in some languages.
+ *
+ * @struct IntType
+ *   Represents the 32-bit integer type.
+ *
+ * @struct BoolType
+ *   Represents the boolean type.
+ *
+ * @struct ArrayType
+ *   Represents an array type with a fixed size and element type.
+ *
+ * @struct TupleType
+ *   Represents a tuple type, which is a fixed-size collection of heterogeneous types.
+ *
+ * @typedef TypePtr
+ *   Alias for std::shared_ptr<Type>, used for managing type instances.
+ *
+ * @note
+ *   - All type instances are managed via shared pointers for polymorphic behavior.
+ *   - Composite types (ArrayType, TupleType) provide element access and size information.
+ *   - The type system supports reference qualifiers for future extensibility.
+ */
 #pragma once
 
 #include <memory>

@@ -17,8 +17,8 @@ public:
   static IRQuadPtr makeAssign(sym::ValuePtr src, sym::ValuePtr dst) {
     auto quad = std::make_shared<IRQuad>();
     quad->op = IROp::ASSIGN;
-    quad->arg1 = Operand{src};
-    quad->dst = Operand{dst};
+    quad->arg1 = Operand{std::move(src)};
+    quad->dst = Operand{std::move(dst)};
     return quad;
   }
 
@@ -30,7 +30,7 @@ public:
     auto quad = std::make_shared<IRQuad>();
     quad->op = IROp::RETURN;
     if (retval) {
-      quad->arg1 = Operand{retval};
+      quad->arg1 = Operand{std::move(retval)};
     }
     quad->label = std::move(funcname);
     return quad;
@@ -48,9 +48,9 @@ public:
   {
     auto quad = std::make_shared<IRQuad>();
     quad->op = op;
-    quad->arg1 = Operand{base};
-    quad->arg2 = Operand{idx};
-    quad->dst = Operand{dst};
+    quad->arg1 = Operand{std::move(base)};
+    quad->arg2 = Operand{std::move(idx)};
+    quad->dst = Operand{std::move(dst)};
     return quad;
   }
 
@@ -60,7 +60,7 @@ public:
     auto quad = std::make_shared<IRQuad>();
     quad->op = op;
     quad->elems = std::move(elems);
-    quad->dst = Operand{dst};
+    quad->dst = Operand{std::move(dst)};
     return quad;
   }
 
@@ -69,16 +69,16 @@ public:
   {
     auto quad = std::make_shared<IRQuad>();
     quad->op = op;
-    quad->arg1 = Operand{arg1};
-    quad->arg2 = Operand{arg2};
-    quad->dst = Operand{dst};
+    quad->arg1 = Operand{std::move(arg1)};
+    quad->arg2 = Operand{std::move(arg2)};
+    quad->dst = Operand{std::move(dst)};
     return quad;
   }
 
   static IRQuadPtr makeCall(std::string callee, sym::ValuePtr dst) {
     auto quad = std::make_shared<IRQuad>();
     quad->op = IROp::CALL;
-    quad->dst = Operand{dst};
+    quad->dst = Operand{std::move(dst)};
     quad->label = std::move(callee);
     return quad;
   }
@@ -86,24 +86,32 @@ public:
   static IRQuadPtr makeParam(sym::ValuePtr param) {
     auto quad = std::make_shared<IRQuad>();
     quad->op = IROp::PARAM;
-    quad->arg1 = Operand{param};
+    quad->arg1 = Operand{std::move(param)};
+    return quad;
+  }
+
+  static IRQuadPtr makeBeqz(sym::ValuePtr cond, std::string label) {
+    auto quad = std::make_shared<IRQuad>();
+    quad->op = IROp::BEQZ;
+    quad->arg1 = Operand{std::move(cond)};
+    quad->label = std::move(label);
     return quad;
   }
 
   static IRQuadPtr makeBnez(sym::ValuePtr cond, std::string label) {
     auto quad = std::make_shared<IRQuad>();
     quad->op = IROp::BNEZ;
-    quad->arg1 = Operand{cond};
-    quad->label = label;
+    quad->arg1 = Operand{std::move(cond)};
+    quad->label = std::move(label);
     return quad;
   }
 
-  static IRQuadPtr makeBlt(sym::ValuePtr arg1, sym::ValuePtr arg2, std::string label) {
+  static IRQuadPtr makeBge(sym::ValuePtr arg1, sym::ValuePtr arg2, std::string label) {
     auto quad = std::make_shared<IRQuad>();
-    quad->op = IROp::BLT;
-    quad->arg1 = Operand{arg1};
-    quad->arg2 = Operand{arg2};
-    quad->label = label;
+    quad->op = IROp::BGE;
+    quad->arg1 = Operand{std::move(arg1)};
+    quad->arg2 = Operand{std::move(arg2)};
+    quad->label = std::move(label);
     return quad;
   }
 

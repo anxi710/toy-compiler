@@ -15,6 +15,7 @@ using TypePtr = std::shared_ptr<Type>;
 
 namespace sym {
 
+// 符号基类
 struct Symbol {
   std::string    name;
   util::Position pos{0, 0}; // 符号声明时的位置
@@ -27,9 +28,9 @@ using SymbolPtr = std::shared_ptr<Symbol>;
 
 struct Value : Symbol {
   enum class Kind : std::uint8_t {
-    TEMP,
-    LOCAL,
-    CONST
+    TEMP,  // 临时变量
+    LOCAL, // 局部变量
+    CONST  // 常量
   } kind;
 
   bool mut;  // 本身是否可变

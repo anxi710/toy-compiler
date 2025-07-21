@@ -30,7 +30,7 @@ my @nodes = (
     "IfExpr",
     "LoopExpr",
     "WhileLoopExpr",
-    "Interval",
+    "RangeExpr",
     "IterableVal",
     "ForLoopExpr",
     "StmtBlockExpr",

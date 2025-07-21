@@ -1,3 +1,22 @@
+/**
+ * @file break_checker.cpp
+ * @brief Implements the BreakChecker class for semantic analysis of break expressions.
+ *
+ * This file contains the implementation of the BreakChecker class, which traverses
+ * the abstract syntax tree (AST) to check for correct usage of `break` expressions
+ * within different statement and expression nodes. It ensures that all `break`
+ * expressions within a block are type-consistent and reports semantic errors if
+ * mismatches are found.
+ *
+ * The visitor methods handle various AST node types, including statement blocks,
+ * variable declarations, expression statements, return expressions, break expressions,
+ * assignment expressions, bracket expressions, if expressions, and else clauses.
+ * Special logic is applied to `break` expressions to infer and enforce the expected
+ * type for all breaks within the same context.
+ *
+ * Error reporting is performed via the `reporter` object, and type information is
+ * managed using the `type` member variable.
+ */
 #include "break_checker.hpp"
 
 namespace sem {
@@ -17,8 +36,8 @@ BreakChecker::visit(ast::StmtBlockExpr &sbexpr)
 void
 BreakChecker::visit(ast::VarDeclStmt &vdstmt)
 {
-  if (vdstmt.value.has_value()) {
-    vdstmt.value.value()->accept(*this);
+  if (vdstmt.rval.has_value()) {
+    vdstmt.rval.value()->accept(*this);
   }
 }
 

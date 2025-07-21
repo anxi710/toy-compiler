@@ -4,6 +4,32 @@
 
 #include "symbol.hpp"
 
+#define IROP_LIST(_) \
+  _(ADD,      "+") \
+  _(SUB,      "-") \
+  _(MUL,      "*") \
+  _(DIV,      "/") \
+  _(EQ,       "==") \
+  _(NEQ,      "!=") \
+  _(GEQ,      ">=") \
+  _(GT,       ">") \
+  _(LEQ,      "<=") \
+  _(LT,       "<") \
+  _(ASSIGN,   "=") \
+  _(GOTO,     "goto") \
+  _(BEQZ,     "beqz") \
+  _(BNEZ,     "bnez") \
+  _(BGE,      "bge") \
+  _(LABEL,    "label") \
+  _(FUNC,     "func") \
+  _(RETURN,   "return") \
+  _(PARAM,    "param") \
+  _(CALL,     "call") \
+  _(INDEX,    "[]") \
+  _(DOT,      ".") \
+  _(MAKE_ARR, "make_array") \
+  _(MAKE_TUP, "make_tuple")
+
 namespace ir {
 
 struct Operand {
@@ -21,16 +47,9 @@ struct Operand {
 };
 
 enum class IROp : std::uint8_t {
-  ADD, SUB, MUL, DIV,
-  EQ, NEQ, GEQ, GT, LEQ, LT,
-  ASSIGN,
-  GOTO, BNEZ, BLT,
-  LABEL,
-  FUNC, RETURN, PARAM, CALL,
-  INDEX, // e.g., t2 = a[t1]
-  DOT,   // e.g., t3 = a.1
-  MAKE_ARR,
-  MAKE_TUP,
+#define DEFINE_ENUM(name, str) name,
+  IROP_LIST(DEFINE_ENUM)
+#undef DEFINE_ENUM
 };
 
 [[nodiscard]] auto irop2str(const IROp &op) -> std::string;

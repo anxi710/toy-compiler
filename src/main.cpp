@@ -47,6 +47,16 @@ printHelp(const char *const exec)
   std::println("    $ dot -Tpng path/to/output.dot -o AST.png");
 }
 
+// 定义长选项
+static constexpr struct option options[] = {
+    {.name = "help",    .has_arg = no_argument,       .flag = nullptr, .val = 'h'},
+    {.name = "version", .has_arg = no_argument,       .flag = nullptr, .val = 'v'},
+    {.name = "input",   .has_arg = required_argument, .flag = nullptr, .val = 'i'},
+    {.name = "output",  .has_arg = required_argument, .flag = nullptr, .val = 'o'},
+    {.name = "ir",      .has_arg = no_argument,       .flag = nullptr, .val = 'r'},
+    {.name = nullptr,   .has_arg = 0,                 .flag = nullptr, .val = 0} // 结束标志
+};
+
 /**
  * @brief  参数解析
  * @param  argc argument counter
@@ -56,18 +66,7 @@ printHelp(const char *const exec)
 auto
 argumentParsing(int argc, char *argv[])
 {
-  // 定义长选项
-  static const struct option options[] = {
-      {.name = "help",    .has_arg = no_argument,       .flag = nullptr, .val = 'h'},
-      {.name = "version", .has_arg = no_argument,       .flag = nullptr, .val = 'v'},
-      {.name = "input",   .has_arg = required_argument, .flag = nullptr, .val = 'i'},
-      {.name = "output",  .has_arg = required_argument, .flag = nullptr, .val = 'o'},
-      {.name = "ir",      .has_arg = no_argument,       .flag = nullptr, .val = 'r'},
-      {.name = nullptr,   .has_arg = 0,                 .flag = nullptr, .val = 0} // 结束标志
-  };
-
   int opt; // option
-  int optidx = 0;
 
   bool flag_ir = false;
 
@@ -75,7 +74,7 @@ argumentParsing(int argc, char *argv[])
   std::string out_file{}; // 输出文件名
 
   // 参数解析
-  while ((opt = getopt_long(argc, argv, "hvVi:o:r", options, &optidx)) != -1) {
+  while ((opt = getopt_long(argc, argv, "hvVi:o:r", options, nullptr)) != -1) {
     switch (opt) {
       case 'h': // help
         printHelp(argv[0]);

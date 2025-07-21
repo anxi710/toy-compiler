@@ -19,8 +19,8 @@ ReturnChecker::visit(ast::StmtBlockExpr &sbexpr)
 void
 ReturnChecker::visit(ast::VarDeclStmt &vdstmt)
 {
-  if (vdstmt.value.has_value()) {
-    vdstmt.value.value()->accept(*this);
+  if (vdstmt.rval.has_value()) {
+    vdstmt.rval.value()->accept(*this);
   }
 }
 

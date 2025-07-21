@@ -2,6 +2,8 @@
 
 #include "position.hpp"
 #include "symbol_table.hpp"
+#include "temp_factory.hpp"
+#include "type_factory.hpp"
 #include "semantic_context.hpp"
 
 namespace sem {
@@ -161,25 +163,25 @@ SemanticContext::declareConst(std::variant<int, bool> val, util::Position pos)
 type::TypePtr
 SemanticContext::produceArrType(int size, type::TypePtr etype)
 {
-  return type_factory.getArray(size, std::move(etype));
+  return type_factory->getArray(size, std::move(etype));
 }
 
 type::TypePtr
 SemanticContext::produceTupType(std::vector<type::TypePtr> etypes)
 {
-  return type_factory.getTuple(std::move(etypes));
+  return type_factory->getTuple(std::move(etypes));
 }
 
 void
 SemanticContext::resetTempCnt()
 {
-  temp_factory.reset();
+  temp_factory->resetCnt();
 }
 
 sym::TempPtr
 SemanticContext::produceTemp(util::Position pos, type::TypePtr type)
 {
-  return temp_factory.produce(pos, std::move(type));
+  return temp_factory->produce(pos, std::move(type));
 }
 
 void
@@ -279,6 +281,7 @@ SemanticContext::getCurScopeName() const
 std::string
 SemanticContext::getCurCtxName() const
 {
+  CHECK(!scopestack.empty(), "scope stack is empty");
   return scopestack.back().name;
 }
 

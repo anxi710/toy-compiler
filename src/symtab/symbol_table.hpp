@@ -1,3 +1,28 @@
+/**
+ * @file symbol_table.hpp
+ * @brief Defines the SymbolTable class for managing symbols in different scopes.
+ *
+ * The SymbolTable class provides functionality for managing variable, constant,
+ * and function symbols within multiple named scopes. It supports entering and
+ * exiting scopes, declaring and looking up symbols, and dumping symbol table
+ * contents for debugging or analysis purposes.
+ *
+ * @namespace sym
+ * Contains all symbol table related classes and definitions.
+ *
+ * @class SymbolTable
+ * @brief Manages symbol declarations and lookups across multiple scopes.
+ *
+ * The SymbolTable class maintains mappings for variables, constants, and
+ * functions, supporting transparent hashing for efficient lookups. It allows
+ * for scope management (entering/exiting), symbol declaration, and symbol
+ * lookup with optional type inference checks.
+ *
+ * @note
+ * - Scopes are managed as shared pointers to unordered maps.
+ * - Transparent hashing and comparison are used for efficient string lookups.
+ * - The class supports dumping its contents to an output file stream.
+ */
 #pragma once
 
 #include <string>

@@ -1,3 +1,29 @@
+/**
+ * @file ast.hpp
+ * @brief Defines the Abstract Syntax Tree (AST) node structures.
+ *
+ * This header contains the core AST node definitions, including statements, expressions,
+ * declarations, types, and control flow constructs. It supports both OOP and CRTP visitor patterns
+ * for traversing and processing the AST. Each node records its source position and may store
+ * intermediate representation (IR) quads for code generation.
+ *
+ * Key Features:
+ * - Node hierarchy for all language constructs (program, declarations, statements, expressions, etc.)
+ * - Support for both OOP and CRTP visitor patterns via `accept` methods
+ * - Type information encapsulated in `Type` nodes
+ * - Rich set of expression and statement types, including control flow, function calls, assignments, etc.
+ * - Use of smart pointers for memory management
+ * - Source code position tracking for error reporting and diagnostics
+ *
+ * Namespaces:
+ * - ast: Contains all AST node definitions and related types
+ *
+ * Dependencies:
+ * - symbol.hpp: Symbol table and value representations
+ * - ir_quad.hpp: Intermediate representation (IR) quads
+ * - position.hpp: Source code position tracking
+ * - type_factory.hpp: Type system and type construction utilities
+ */
 #pragma once
 
 #include <vector>
@@ -11,10 +37,11 @@ namespace ast {
 
 class OOPVisitor;
 
-// 所有 AST 结点的基类
+/**
+ * @brief 所有 AST 结点的基类
+ */
 struct Node {
-  util::Position pos;
-
+  util::Position pos; // 在源代码中的位置
   std::vector<ir::IRQuadPtr> ircode; // 存放结点对应的四元式序列
 
   virtual ~Node() = default;
@@ -65,30 +92,20 @@ struct Type : MetaNode {
   explicit Type(type::TypePtr t) : type(std::move(t)) {}
   ~Type() override = default;
 
-  Type& operator=(const Type &other) {
-    if (this == &other) {
-      return *this;
-    }
-    this->type = other.type;
-    return *this;
-  }
   bool operator==(const Type& other) const {
     return type::typeEquals(this->type, other.type);
   }
-  [[nodiscard]] std::string str() const {
-    return type->str();
-  }
+  [[nodiscard]] std::string str() const { return type->str(); }
 };
 
 // Argument
 struct Arg : Node, CRTPVisitable<Arg> {
-  bool          mut;
-  std::string   name;
-  Type          type;
+  bool        mut;  // mutable or not
+  std::string name; // argument name
+  Type        type; // argument type
 
-  Arg(bool mut, std::string name, const Type &type
-  ) : mut(mut), name(std::move(name)),
-      type(type) {}
+  Arg(bool mut, std::string name, const Type &type)
+    : mut(mut), name(std::move(name)), type(type) {}
   ~Arg() override = default;
 
   void accept(OOPVisitor& visitor) final;
@@ -117,7 +134,7 @@ struct Stmt : virtual Node {
     DECL,  // 声明语句（当前只有变量声明语句）
     EXPR,  // 表达式语句
   } kind;
-  bool unreachable; // 是否可以执行到
+  bool unreachable = false; // 是否可以执行到
   bool is_last = false;
   Type type;
 
@@ -128,7 +145,7 @@ struct Stmt : virtual Node {
 using StmtPtr = std::shared_ptr<Stmt>;
 
 // Empty Statement
-struct EmptyStmt : Stmt, CRTPVisitable<Prog> {
+struct EmptyStmt : Stmt, CRTPVisitable<EmptyStmt> {
   EmptyStmt() : Stmt(Kind::EMPTY) {}
   ~EmptyStmt() override = default;
   void accept(OOPVisitor& visitor) final;
@@ -140,15 +157,15 @@ using ExprPtr = std::shared_ptr<Expr>;
 
 // Variable Declaration Statement
 struct VarDeclStmt : Stmt, CRTPVisitable<VarDeclStmt> {
-  bool        mut;
-  std::string name;
-  Type        vartype; // variable type
-  std::optional<ExprPtr> value;
+  bool        mut;     // mutable or not (the declared variable)
+  std::string name;    // the declared variable name
+  Type        vartype; // the declared variable type
+  std::optional<ExprPtr> rval; // r-value for variable initialization
 
   VarDeclStmt(bool mut, std::string name,
     const Type &vartype, std::optional<ExprPtr> expr
   ) : Stmt(Kind::DECL), mut(mut), name(std::move(name)),
-      vartype(vartype), value(std::move(expr)) {}
+      vartype(vartype), rval(std::move(expr)) {}
   ~VarDeclStmt() override = default;
   void accept(OOPVisitor& visitor) final;
 };
@@ -158,9 +175,10 @@ using VarDeclStmtPtr = std::shared_ptr<VarDeclStmt>;
 struct Expr : virtual Node {
   sym::ValuePtr symbol; // 表达式计算结果存储位置
 
-  bool res_mut; // 表达式计算结果是否可变
-  bool used_as_stmt;
-  bool is_ctlflow = false;
+  bool res_mut = false; // 表达式计算结果是否可变
+  bool used_as_stmt; // used as a statement or not
+  bool is_ctlflow = false; // is a control flow expression
+                           // (if expression, loop expression etc.)
   bool is_var = false; // 是否是一个变量
   Type type; // value type
 
@@ -187,7 +205,12 @@ using RetExprPtr = std::shared_ptr<RetExpr>;
 
 // break expression
 struct BreakExpr : Expr, CRTPVisitable<BreakExpr> {
-  std::optional<ExprPtr>       value;
+  // break expression can return
+  // a value if it in a loop context
+  std::optional<ExprPtr> value;
+
+  // the destination of the break return value
+  // corresponding to the value of the loop expression
   std::optional<sym::ValuePtr> dst;
 
   BreakExpr(std::optional<ExprPtr> expr)
@@ -258,7 +281,7 @@ struct Number : Expr, CRTPVisitable<Number> {
 using NumberPtr = std::shared_ptr<Number>;
 
 struct Variable : Expr, CRTPVisitable<Variable> {
-  std::string name;
+  std::string name; // variable name
 
   Variable(std::string name) : name(std::move(name)) {}
   ~Variable() override = default;
@@ -269,14 +292,14 @@ using VariablePtr = std::shared_ptr<Variable>;
 // Assign Element
 struct AssignElem : Expr, CRTPVisitable<AssignElem> {
   enum class Kind : std::uint8_t {
-    VARIABLE,
-    ARRACC,
-    TUPACC
+    VARIABLE, // 变量
+    ARRACC,   // 数组访问
+    TUPACC    // 元组访问
   } kind;
 
-  ExprPtr value;
+  ExprPtr base;
 
-  AssignElem(ExprPtr value) : value(std::move(value)) {}
+  AssignElem(ExprPtr expr) : base(std::move(expr)) {}
   ~AssignElem() override = default;
   void accept(OOPVisitor& visitor) override;
 };
@@ -291,7 +314,7 @@ struct ArrAcc : AssignElem {
   ~ArrAcc() override = default;
 
   void accept(OOPVisitor& visitor) final;
-  // 重写 accept，调用 visit(ArrAcc&)
+  // 重写 accept，调用 visit(TupAcc&)
   template <typename Visitor>
   void accept(Visitor &visitor) {
     visitor.visit(*this);
@@ -328,11 +351,11 @@ using ExprStmtPtr = std::shared_ptr<ExprStmt>;
 
 // Statement Block Expression
 struct StmtBlockExpr : Expr, CRTPVisitable<StmtBlockExpr> {
-  bool has_ret; // 是否含有返回语句
+  bool has_ret = false; // 是否含有返回语句
   std::vector<StmtPtr> stmts; // statements
 
   StmtBlockExpr(std::vector<StmtPtr> stmts)
-    : stmts(std::move(stmts)) {}
+    : has_ret(false), stmts(std::move(stmts)) {}
   ~StmtBlockExpr() override = default;
   void accept(OOPVisitor& visitor) final;
 };
@@ -455,7 +478,7 @@ struct WhileLoopExpr : LoopExpr {
   ~WhileLoopExpr() override = default;
 
   void accept(OOPVisitor& visitor) final;
-  // 重写 accept，调用 visit(WhileLoopExpr&)
+  // CRTP visitor: 调用 visit(WhileLoopExpr&)
   template <typename Visitor>
   void accept(Visitor &visitor) {
     visitor.visit(*this);
@@ -463,6 +486,8 @@ struct WhileLoopExpr : LoopExpr {
 };
 using WhileLoopExprPtr = std::shared_ptr<WhileLoopExpr>;
 
+// 可迭代的值
+// 可以是一个 Array 类型的变量或中间值
 struct IterableVal : Expr, CRTPVisitable<IterableVal> {
   ExprPtr value;
 
@@ -472,28 +497,27 @@ struct IterableVal : Expr, CRTPVisitable<IterableVal> {
 };
 using IterableValPtr = std::shared_ptr<IterableVal>;
 
-struct Interval : Expr, CRTPVisitable<Interval> {
+struct RangeExpr : Expr, CRTPVisitable<RangeExpr> {
   // 左闭右开区间
   ExprPtr start;
   ExprPtr end;
 
-  Interval(ExprPtr start, ExprPtr end)
+  RangeExpr(ExprPtr start, ExprPtr end)
     : start(std::move(start)), end(std::move(end)) {}
-  ~Interval() override = default;
+  ~RangeExpr() override = default;
   void accept(OOPVisitor &visitor) final;
 };
-using IntervalPtr = std::shared_ptr<Interval>;
+using RangeExprPtr = std::shared_ptr<RangeExpr>;
 
 // for loop expression
 struct ForLoopExpr : LoopExpr {
-  bool mut;
-  std::string name;
-  ExprPtr iter;
+  bool        mut;
+  std::string pattern;
+  ExprPtr     iterexpr;
 
-  ForLoopExpr(bool mut, std::string name,
-    ExprPtr iter, StmtBlockExprPtr body
-  ) : LoopExpr(std::move(body)), mut(mut),
-      name(std::move(name)), iter(std::move(iter)) {}
+  ForLoopExpr(bool mut, std::string pattern, ExprPtr iterexpr,
+    StmtBlockExprPtr body) : LoopExpr(std::move(body)), mut(mut),
+      pattern(std::move(pattern)), iterexpr(std::move(iterexpr)) {}
   ~ForLoopExpr() override = default;
 
   void accept(OOPVisitor &visitor) final;

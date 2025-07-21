@@ -1,88 +1,80 @@
+/**
+ * @file oop_visitor.hpp
+ * @brief Defines the OOPVisitor and BaseVisitor classes for the AST visitor pattern.
+ *
+ * This file contains the abstract base class `OOPVisitor` which declares pure virtual
+ * visit methods for each AST node type. The `BaseVisitor` class provides default
+ * (empty) implementations for all visit methods, allowing derived visitors to override
+ * only the methods they need.
+ *
+ * Usage:
+ * - Inherit from `BaseVisitor` to implement custom AST traversals or analyses.
+ * - Override only the visit methods relevant to your use case.
+ *
+ * Classes:
+ * - ast::OOPVisitor: Abstract visitor interface for all AST node types.
+ * - ast::BaseVisitor: Concrete visitor with default no-op implementations.
+ */
 #pragma once
 
-#include "ast.hpp"
+#define OOP_VISIT_NODES(DEFINE_NODE) \
+  DEFINE_NODE(Prog) \
+  DEFINE_NODE(Type) \
+  DEFINE_NODE(Arg) \
+  DEFINE_NODE(StmtBlockExpr) \
+  DEFINE_NODE(FuncHeaderDecl) \
+  DEFINE_NODE(FuncDecl) \
+  DEFINE_NODE(ExprStmt) \
+  DEFINE_NODE(EmptyExpr) \
+  DEFINE_NODE(BracketExpr) \
+  DEFINE_NODE(AssignElem) \
+  DEFINE_NODE(Variable) \
+  DEFINE_NODE(ArrAcc) \
+  DEFINE_NODE(TupAcc) \
+  DEFINE_NODE(Number) \
+  DEFINE_NODE(ArrElems) \
+  DEFINE_NODE(TupElems) \
+  DEFINE_NODE(RetExpr) \
+  DEFINE_NODE(VarDeclStmt) \
+  DEFINE_NODE(AssignExpr) \
+  DEFINE_NODE(CmpExpr) \
+  DEFINE_NODE(AriExpr) \
+  DEFINE_NODE(CallExpr) \
+  DEFINE_NODE(ElseClause) \
+  DEFINE_NODE(IfExpr) \
+  DEFINE_NODE(WhileLoopExpr) \
+  DEFINE_NODE(RangeExpr) \
+  DEFINE_NODE(IterableVal) \
+  DEFINE_NODE(ForLoopExpr) \
+  DEFINE_NODE(LoopExpr) \
+  DEFINE_NODE(BreakExpr) \
+  DEFINE_NODE(ContinueExpr) \
+  DEFINE_NODE(EmptyStmt)
 
 namespace ast {
+
+#define FORWARD_DECLARE(name) struct name;
+  OOP_VISIT_NODES(FORWARD_DECLARE)
+#undef FORWARD_DECLARE
 
 class OOPVisitor {
 public:
   virtual ~OOPVisitor() = default;
 
 public:
-  virtual void visit(Prog &prog) = 0;
-  virtual void visit(Type &type) = 0;
-  virtual void visit(Arg &arg) = 0;
-  virtual void visit(StmtBlockExpr &sbexpr) = 0;
-  virtual void visit(FuncHeaderDecl &fhdecl) = 0;
-  virtual void visit(FuncDecl &fdecl) = 0;
-  virtual void visit(ExprStmt &estmt) = 0;
-  virtual void visit(EmptyExpr &eexpr) = 0;
-  virtual void visit(BracketExpr &bexpr) = 0;
-  virtual void visit(AssignElem &aelem) = 0;
-  virtual void visit(Variable &var) = 0;
-  virtual void visit(ArrAcc &aacc) = 0;
-  virtual void visit(TupAcc &tacc) = 0;
-  virtual void visit(Number &num) = 0;
-  virtual void visit(ArrElems &arrelems) = 0;
-  virtual void visit(TupElems &tupelems) = 0;
-  virtual void visit(RetExpr &rstmt) = 0;
-  virtual void visit(VarDeclStmt &vdstmt) = 0;
-  virtual void visit(AssignExpr &aexpr) = 0;
-  virtual void visit(CmpExpr &cexpr) = 0;
-  virtual void visit(AriExpr &aexpr) = 0;
-  virtual void visit(CallExpr &cexpr) = 0;
-  virtual void visit(ElseClause &eclause) = 0;
-  virtual void visit(IfExpr &iexpr) = 0;
-  virtual void visit(WhileLoopExpr&wlexpr) = 0;
-  virtual void visit(Interval &interval) = 0;
-  virtual void visit(IterableVal &iter) = 0;
-  virtual void visit(ForLoopExpr &flexpr) = 0;
-  virtual void visit(LoopExpr&lexpr) = 0;
-  virtual void visit(BreakExpr &bexpr) = 0;
-  virtual void visit(ContinueExpr &cexpr) = 0;
-  virtual void visit(EmptyStmt &estmt) = 0;
+#define VIRTUAL_DECLARE(name) virtual void visit(name&) = 0;
+  OOP_VISIT_NODES(VIRTUAL_DECLARE)
+#undef VIRTUAL_DECLARE
 };
 
-// 继承自 OOPVisitor 并实现了所有虚函数
-// 其余 Visitor 继承该类，而非纯虚类 OOPVisitor
-// 可以按需实现虚函数，而非所有虚函数都实现
 class BaseVisitor : public OOPVisitor {
 public:
   ~BaseVisitor() override = default;
 
 public:
-  void visit(Prog &prog) override {};
-  void visit(Type &type) override {};
-  void visit(Arg &arg) override {};
-  void visit(StmtBlockExpr &sbexpr) override {};
-  void visit(FuncHeaderDecl &fhdecl) override {};
-  void visit(FuncDecl &fdecl) override {};
-  void visit(ExprStmt &estmt) override {};
-  void visit(EmptyExpr &eexpr) override {};
-  void visit(BracketExpr &bexpr) override {};
-  void visit(AssignElem &aelem) override {};
-  void visit(Variable &var) override {};
-  void visit(ArrAcc &aacc) override {};
-  void visit(TupAcc &tacc) override {};
-  void visit(Number &num) override {};
-  void visit(ArrElems &arrelems) override {};
-  void visit(TupElems &tupelems) override {};
-  void visit(RetExpr &rstmt) override {};
-  void visit(VarDeclStmt &vdstmt) override {};
-  void visit(AssignExpr &aexpr) override {};
-  void visit(CmpExpr &cexpr) override {};
-  void visit(AriExpr &aexpr) override {};
-  void visit(CallExpr &cexpr) override {};
-  void visit(ElseClause &eclause) override {};
-  void visit(IfExpr &iexpr) override {};
-  void visit(WhileLoopExpr&wlexpr) override {};
-  void visit(Interval &interval) override {};
-  void visit(IterableVal &iter) override {};
-  void visit(ForLoopExpr &flexpr) override {};
-  void visit(LoopExpr&lexpr) override {};
-  void visit(BreakExpr &bexpr) override {};
-  void visit(ContinueExpr &cexpr) override {};
-  void visit(EmptyStmt &estmt) override {};
+#define DEFAULT_IMPL(name) void visit(name &node) override {};
+  OOP_VISIT_NODES(DEFAULT_IMPL)
+#undef DEFAULT_IMPL
 };
 
 } // namespace ast

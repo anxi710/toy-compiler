@@ -1,9 +1,9 @@
 #pragma once
 
 #include "ast.hpp"
-#include "temp_factory.hpp"
 #include "crtp_visitor.hpp"
-#include "semantic_context.hpp"
+
+namespace sem { class SemanticContext; }
 
 namespace ir {
 
@@ -25,38 +25,37 @@ namespace ir {
 
 class IRBuilder : public ast::CRTPVisitor<IRBuilder> {
 public:
-  IRBuilder(sem::SemanticContext &ctx) : ctx(ctx) {}
+  IRBuilder(sem::SemanticContext &ctx);
 
 public:
-  void visit(ast::Prog &prog);
-  void visit(ast::FuncDecl &fdecl);
-  void visit(ast::FuncHeaderDecl &fhdecl);
-  void visit(ast::Arg &arg);
-  void visit(ast::StmtBlockExpr &sbexpr);
-  void visit(ast::VarDeclStmt &vdstmt);
-  void visit(ast::ExprStmt &estmt);
-  void visit(ast::RetExpr &rexpr);
-  void visit(ast::BreakExpr &bexpr);
-  void visit(ast::ContinueExpr &cexpr);
-  void visit(ast::AssignExpr &aexpr);
-  void visit(ast::AssignElem &aelem);
-  void visit(ast::Variable &var);
-  void visit(ast::ArrAcc &aacc);
-  void visit(ast::TupAcc &tacc);
-  void visit(ast::CmpExpr &cexpr);
-  void visit(ast::AriExpr &aexpr);
-  void visit(ast::ArrElems &aelems);
-  void visit(ast::TupElems &telems);
-  void visit(ast::Number &num);
-  void visit(ast::BracketExpr &bexpr);
-  void visit(ast::CallExpr &cexpr);
-  void visit(ast::IfExpr &iexpr);
-  void visit(ast::ElseClause &eclause);
-  void visit(ast::WhileLoopExpr&wlexpr);
-  void visit(ast::ForLoopExpr &flexpr);
-  void visit(ast::Interval &interval);
-  void visit(ast::IterableVal &iter);
-  void visit(ast::LoopExpr&lexpr);
+  static void visit(ast::Prog&);
+  static void visit(ast::FuncDecl&);
+  static void visit(ast::FuncHeaderDecl&);
+  static void visit(ast::StmtBlockExpr&);
+  void visit(ast::VarDeclStmt&);
+  static void visit(ast::ExprStmt&);
+  void visit(ast::RetExpr&);
+  void visit(ast::BreakExpr&);
+  void visit(ast::ContinueExpr&);
+  static void visit(ast::AssignExpr&);
+  static void visit(ast::AssignElem&);
+  void visit(ast::Variable&);
+  void visit(ast::ArrAcc&);
+  void visit(ast::TupAcc&);
+  void visit(ast::CmpExpr&);
+  void visit(ast::AriExpr&);
+  void visit(ast::ArrElems&);
+  void visit(ast::TupElems&);
+  void visit(ast::Number&);
+  static void visit(ast::BracketExpr&);
+  void visit(ast::CallExpr&);
+  void visit(ast::IfExpr&);
+  void visit(ast::ElseClause&);
+  void visit(ast::WhileLoopExpr&);
+  void visit(ast::ForLoopExpr&);
+  void visit(ast::RangeExpr&);
+  void visit(ast::IterableVal&);
+  void visit(ast::LoopExpr&);
 
 private:
   sem::SemanticContext &ctx;
