@@ -8,10 +8,25 @@ on:
 
 jobs:
   build:
-
-    runs-on: ubuntu-latest
+    runs-on: archlinux
 
     steps:
     - uses: actions/checkout@v4
-    - name: make
-      run: make all
+
+    # - name: Install Clang 20 from LLVM prebuilt
+    #   run: |
+    #     wget -qO - https://apt.llvm.org/llvm.sh | sudo bash -s -- 20
+    #     sudo apt install -y libc++-20-dev libc++abi-20-dev
+
+    # - name: Set default clang alternatives
+    #   run: |
+    #     sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
+    #     sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
+    #     sudo update-alternatives --set clang /usr/bin/clang-20
+    #     sudo update-alternatives --set clang++ /usr/bin/clang++-20
+    #     clang --version
+    #     clang++ --version
+
+    - name: Build
+      run: |
+        make all
