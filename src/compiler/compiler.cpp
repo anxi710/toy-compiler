@@ -5,6 +5,10 @@
 #include "panic.hpp"
 #include "preproc.hpp"
 #include "compiler.hpp"
+#include "mem_alloc.hpp"
+#include "reg_alloc.hpp"
+#include "stack_alloc.hpp"
+#include "code_generate.hpp"
 
 namespace cpr {
 
@@ -48,7 +52,7 @@ Compiler::Compiler(const std::string &file)
  * @param file 输出文件名（不带后缀）
  */
 void
-Compiler::generateIR(const std::string &file)
+Compiler::generateIR(const std::string &file, bool print)
 {
   // 准备输出文件流
   std::string base = file.empty() ? "output" : file;
@@ -78,10 +82,34 @@ Compiler::generateIR(const std::string &file)
     return;
   }
 
-  // pretty print
-  for (const auto &code : ast_root->ircode) {
-    out << code->str() << std::endl;
+  if (print) {
+    // pretty print
+    for (const auto &code : ast_root->ircode) {
+      out << code->str() << std::endl;
+    }
+  } else {
+    std::filesystem::remove(filename);
   }
+}
+
+void
+Compiler::generateAssemble(const std::string &file)
+{
+  // 准备输出文件流
+  std::string base = file.empty() ? "output" : file;
+  std::string filename = std::format("{}.s", base);
+  std::ofstream out;
+  out.open(filename);
+  if (!out) {
+    UNREACHABLE("无法打开输出文件（.s）");
+  }
+
+  if (ast_root == nullptr) {
+    generateIR(file, false);
+  }
+
+  cg::CodeGenerator codegen{out, *symtab};
+  codegen.generate(*ast_root);
 }
 
 } // namespace cpr

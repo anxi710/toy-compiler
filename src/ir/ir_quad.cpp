@@ -24,7 +24,10 @@ irop2str(const IROp &op)
 static std::string
 dumpElems(const std::vector<Operand> &elems)
 {
-  ASSERT_MSG(!elems.empty(), "zero element cann't be dumped");
+  if (elems.size() == 0) {
+    return "";
+  }
+
   return elems
   | std::views::transform([](const auto &elem){
       return elem.str();
@@ -61,7 +64,9 @@ IRQuad::str() const
     case IROp::GOTO:
       return std::format("  {} {}", irop2str(op), label);
     case IROp::CALL:
-      return std::format("  {} = call {}", dst.str(), label);
+      return std::format("  {} = call {}({})",
+        dst.str(), label, dumpElems(elems)
+      );
     case IROp::LABEL: case IROp::FUNC:
       return std::format("{}:", label);
     case IROp::BEQZ:
@@ -72,8 +77,6 @@ IRQuad::str() const
       return std::format("  if {} >= {} goto {}",
         arg1.str(), arg2.str(), label
       );
-    case IROp::PARAM:
-      return std::format("  param {}", arg1.str());
     case IROp::RETURN:
       return std::format("  return {} -> {}", arg1.str(), label);
     case IROp::MAKE_ARR: case IROp::MAKE_TUP: {

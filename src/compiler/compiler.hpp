@@ -20,11 +20,11 @@ public:
   Compiler(const std::string &file);
 
 public:
-  void generateIR(const std::string &file);
-  void generateAssemble();
+  void generateIR(const std::string &file, bool print = true);
+  void generateAssemble(const std::string &file);
 
 private:
-  ast::ProgPtr ast_root;
+  ast::ProgPtr ast_root = nullptr;
 
   std::unique_ptr<lex::Lexer>             lexer;    // lexer
   std::unique_ptr<par::Parser>            parser;   // parser

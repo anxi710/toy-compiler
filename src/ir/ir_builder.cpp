@@ -507,20 +507,19 @@ IRBuilder::visit(ast::CallExpr &cexpr)
 {
   auto codes = extractIrcodeAndConcat(cexpr.argv);
 
-  auto param_code = cexpr.argv
+  auto params = cexpr.argv
     | std::views::transform([](const auto &arg) {
-        return QuadFactory::makeParam(arg->symbol);
+        return Operand{arg->symbol};
       })
     | std::ranges::to<std::vector>();
 
   auto temp = ctx.produceTemp(cexpr.pos, cexpr.type.type);
   cexpr.symbol = temp;
 
-  auto quad = QuadFactory::makeCall(cexpr.callee, temp);
+  auto quad = QuadFactory::makeCall(cexpr.callee, params, temp);
 
   cexpr.ircode = concatIrcode(
     std::move(codes),
-    std::move(param_code),
     std::vector{quad}
   );
 }

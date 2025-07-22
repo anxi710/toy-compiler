@@ -2,7 +2,6 @@
 
 #include <vector>
 #include <fstream>
-#include <unordered_map>
 
 #include "symbol.hpp"
 
@@ -52,20 +51,22 @@ public:
 
 public:
   auto alloc(int size, int align) -> int;
-  auto mark() const -> int;
+  [[nodiscard]] auto mark() const -> int;
   void freeTo(int mark);
   void reset();
 
-  auto offset(int addr) const -> int;
-
   // Scope
   void enterFunc();
-  void exitFunc();
   void enterScope();
   void exitScope();
 
+  void retFunc();
+
   // Spilling
   auto spill(const sym::ValuePtr &val) -> int;
+
+  [[nodiscard]] int getFrameSize() const { return framesize; }
+  [[nodiscard]] int offsetFromSP(int stackloc) const { return framesize - stackloc; }
 
 private:
   void spMove(int delta);
@@ -76,7 +77,8 @@ private:
   int frameusage = 0; // usage amount (栈帧使用量)
   int framesize  = 0; // 栈帧大小（以 16 Byte 对齐）
 
-  std::unordered_map<sym::ValuePtr, int> spillslot;
+  int ra_addr;
+
   std::vector<int> scopemarks; // scope marks
 };
 

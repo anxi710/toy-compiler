@@ -46,18 +46,21 @@ SymbolTable::enterScope(const std::string &name, bool create)
 void
 SymbolTable::exitScope()
 {
-  std::size_t idx = curname.rfind("::");
-  ASSERT_MSG(
-    idx < curname.length(),
-    "cann't exit scope"
-  );
+  std::string name;
+  do {
+    std::size_t idx = curname.rfind("::");
+    ASSERT_MSG(
+      idx < curname.length(),
+      "can't exit scope"
+    );
 
-  std::string name = curname.substr(idx + 2);
-  curname = curname.substr(0, idx);
-  ASSERT_MSG(
-    scopes.contains(curname),
-    "scope doesn't exist"
-  );
+    name = curname.substr(idx + 2);
+    curname = curname.substr(0, idx);
+    ASSERT_MSG(
+      scopes.contains(curname),
+      "scope doesn't exist"
+    );
+  } while (name == "virt");
 
   curscope = scopes[curname];
 }
@@ -85,7 +88,15 @@ SymbolTable::declareFunc(const std::string &fname, FunctionPtr func)
 void
 SymbolTable::declareVal(const std::string &vname, ValuePtr val)
 {
-  // BUG: 如何支持重影还有待商榷！
+  if ((*curscope).contains(vname)) {
+    enterScope("virt", true);
+  }
+
+  if (val->kind == Value::Kind::LOCAL) {
+    auto localval = std::static_pointer_cast<Variable>(val);
+    localval->scopename = curname.substr(std::string{"global::"}.length());
+  }
+
   (*curscope)[vname] = std::move(val);
 }
 

@@ -21,6 +21,7 @@ struct Symbol {
   util::Position pos{0, 0}; // 符号声明时的位置
 
   virtual ~Symbol() = default;
+  virtual auto str() -> std::string = 0;
 };
 using SymbolPtr = std::shared_ptr<Symbol>;
 
@@ -47,6 +48,7 @@ struct Value : Symbol {
   ~Value() override = default;
 
   [[nodiscard]] virtual bool isConst() const = 0;
+  virtual auto str() -> std::string override = 0;
 };
 using ValuePtr = std::shared_ptr<Value>;
 
@@ -57,17 +59,26 @@ struct Temp : Value {
   [[nodiscard]] bool isConst() const override {
     return false;
   }
+  std::string str() final { return this->name; }
 };
 using TempPtr = std::shared_ptr<Temp>;
 
 struct Variable : Value {
   bool formal; // 是否是形参
+  std::string scopename;
 
   Variable() : Value(Kind::LOCAL) {}
   ~Variable() override = default;
 
   [[nodiscard]] bool isConst() const override {
     return false;
+  }
+  std::string str() final {
+    return std::format(
+      "{}::{}",
+      this->scopename,
+      this->name
+    );
   }
 };
 using VariablePtr = std::shared_ptr<Variable>;
@@ -81,6 +92,7 @@ struct Constant : Value {
   [[nodiscard]] bool isConst() const override {
     return true;
   }
+  std::string str() final { return this->name; }
 };
 using ConstantPtr = std::shared_ptr<Constant>;
 
@@ -89,6 +101,7 @@ struct Function : Symbol {
   type::TypePtr         type; // return value type
 
   ~Function() override = default;
+  std::string str() final { return this->name; }
 };
 using FunctionPtr = std::shared_ptr<Function>;
 

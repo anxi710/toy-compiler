@@ -1172,6 +1172,9 @@ Parser::parseIfExpr()
   consume(TokenType::IF, "Expect 'if'");
 
   ast::ExprPtr cond = parseExpr();
+
+  builder.ctx->enterIf();
+
   ast::StmtBlockExprPtr body;
   sym::TempPtr temp_val = nullptr;
   if (!check(TokenType::LBRACE)) {
@@ -1181,16 +1184,15 @@ Parser::parseIfExpr()
     std::vector<ast::StmtPtr> stmts{};
     body = std::make_shared<ast::StmtBlockExpr>(stmts);
   } else {
-    builder.ctx->enterIf();
     body = parseStmtBlockExpr();
 
     if (body->type.type != type::TypeFactory::UNIT_TYPE) {
       temp_val = builder.ctx->produceTemp(pos, body->type.type);
       builder.ctx->setCurCtxSymbol(temp_val);
     }
-
-    builder.ctx->exitSymtabScope();
   }
+  builder.ctx->exitSymtabScope();
+
 
   // ElseClause -> else if Expr StmtBlockExpr ElseClause
   //             | else StmtBlockExpr
@@ -1232,6 +1234,7 @@ Parser::parseElseClause()
     advance();
     cond = parseExpr();
 
+    builder.ctx->enterElse();
     if (!check(TokenType::LBRACE)) {
       // TODO: 缺少一个 body!
       std::println(stderr, "缺少语句块，如果这是语句块，考虑在前面添加一个判断条件");
@@ -1239,10 +1242,9 @@ Parser::parseElseClause()
       std::vector<ast::StmtPtr> stmts{};
       body = std::make_shared<ast::StmtBlockExpr>(stmts);
     } else {
-      builder.ctx->enterElse();
       body = parseStmtBlockExpr();
-      builder.ctx->exitSymtabScope();
     }
+    builder.ctx->exitSymtabScope();
   } else {
     // StmtBlockExpr
     builder.ctx->enterElse();

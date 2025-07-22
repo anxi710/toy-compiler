@@ -75,18 +75,14 @@ public:
     return quad;
   }
 
-  static IRQuadPtr makeCall(std::string callee, sym::ValuePtr dst) {
+  static IRQuadPtr makeCall(std::string callee,
+    std::vector<Operand> params, sym::ValuePtr dst)
+  {
     auto quad = std::make_shared<IRQuad>();
     quad->op = IROp::CALL;
+    quad->elems = std::move(params);
     quad->dst = Operand{std::move(dst)};
     quad->label = std::move(callee);
-    return quad;
-  }
-
-  static IRQuadPtr makeParam(sym::ValuePtr param) {
-    auto quad = std::make_shared<IRQuad>();
-    quad->op = IROp::PARAM;
-    quad->arg1 = Operand{std::move(param)};
     return quad;
   }
 

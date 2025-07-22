@@ -14,8 +14,8 @@ printVersion()
    * 使用语义版本控制 (SemVer) 原则设置版本号
    * major.minor.patch
    */
-  std::println("Toy compiler: version 0.7.1");
-  std::println("This is a toy compiler developed by xh, csx and qsw.");
+  std::println("Toy compiler: version 0.8.1");
+  std::println("This is a toy compiler developed by anxi.");
   std::println("Have fun with it!");
 }
 
@@ -36,6 +36,7 @@ printHelp(const char *const exec)
   std::println("  -i, --input filename   set input file (with suffix, must set an input filename)");
   std::println("  -o, --output filename  set output file (without suffix)");
   std::println("  --ir,                  generate IR only");
+  std::println("  --asm,                 generate RISC-V Assembly only");
   std::println("");
   std::println("Examples:");
   std::println("  $ path/to/toy_compiler --ir -i test.txt");
@@ -54,6 +55,7 @@ static constexpr struct option options[] = {
     {.name = "input",   .has_arg = required_argument, .flag = nullptr, .val = 'i'},
     {.name = "output",  .has_arg = required_argument, .flag = nullptr, .val = 'o'},
     {.name = "ir",      .has_arg = no_argument,       .flag = nullptr, .val = 'r'},
+    {.name = "asm",     .has_arg = no_argument,       .flag = nullptr, .val = 'a'},
     {.name = nullptr,   .has_arg = 0,                 .flag = nullptr, .val = 0} // 结束标志
 };
 
@@ -68,13 +70,14 @@ argumentParsing(int argc, char *argv[])
 {
   int opt; // option
 
-  bool flag_ir = false;
+  bool flag_ir  = false;
+  bool flag_asm = false;
 
   std::string in_file{};  // 输入文件名
   std::string out_file{}; // 输出文件名
 
   // 参数解析
-  while ((opt = getopt_long(argc, argv, "hvVi:o:r", options, nullptr)) != -1) {
+  while ((opt = getopt_long(argc, argv, "hvVi:o:ra", options, nullptr)) != -1) {
     switch (opt) {
       case 'h': // help
         printHelp(argv[0]);
@@ -92,6 +95,9 @@ argumentParsing(int argc, char *argv[])
       case 'r': // ir
         flag_ir = true;
         break;
+      case 'a': // asm
+        flag_asm = true;
+        break;
       case '?': // 无效选项
         std::println(stderr, "解析到未知参数");
         std::println(stderr, "尝试运行 \'./toy_compiler --help\' 获取更多信息");
@@ -104,7 +110,7 @@ argumentParsing(int argc, char *argv[])
     exit(1);
   }
 
-  return std::make_tuple(flag_ir, in_file, out_file);
+  return std::make_tuple(flag_ir, flag_asm, in_file, out_file);
 }
 
 /**
@@ -114,12 +120,15 @@ argumentParsing(int argc, char *argv[])
 int
 main(int argc, char *argv[])
 {
-  auto [flag_ir, in_file, out_file] = argumentParsing(argc, argv);
+  auto [flag_ir, flag_asm, in_file, out_file] = argumentParsing(argc, argv);
 
   cpr::Compiler compiler(in_file);
 
   if (flag_ir) {
     compiler.generateIR(out_file);
+  }
+  if (flag_asm) {
+    compiler.generateAssemble(out_file);
   }
 
   return 0;

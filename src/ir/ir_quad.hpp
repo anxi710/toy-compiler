@@ -23,7 +23,6 @@
   _(LABEL,    "label") \
   _(FUNC,     "func") \
   _(RETURN,   "return") \
-  _(PARAM,    "param") \
   _(CALL,     "call") \
   _(INDEX,    "[]") \
   _(DOT,      ".") \
@@ -40,9 +39,13 @@ struct Operand {
 
   [[nodiscard]] std::string str() const {
     if (value != nullptr) {
-      return value->name;
+      return value->str();
     }
     return "-";
+  }
+
+  [[nodiscard]] bool isConst() const {
+    return value->kind == sym::Value::Kind::CONST;
   }
 };
 

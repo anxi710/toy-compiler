@@ -2,7 +2,8 @@
 
 #include "type.hpp"
 #include "panic.hpp"
-#include "stack_allocate.hpp"
+#include "asm_dbg.hpp"
+#include "stack_alloc.hpp"
 
 namespace cg {
 
@@ -35,9 +36,11 @@ floorAlign(int x, int align)
 /**
  * @brief  在栈上分配 size 字节的内存，为避免 misaligned access 错误，
  *         需要先将栈帧中已分配的区域对齐至 size 的整数倍，具体可由 align 设置
+ *
  * @param  size  分配的字节数
  * @param  align 对齐基准值
- * @return 分配到的栈帧位置（从栈帧底部开始计算）
+ *
+ * @return 分配到的栈帧位置（从栈帧底部开始计算，指向低地址）
  */
 int
 StackAllocator::alloc(int size, int align)
@@ -48,7 +51,6 @@ StackAllocator::alloc(int size, int align)
   );
 
   int newframeusage = ceilAlign(frameusage, align);
-  int addr = newframeusage;
 
   // 栈帧已分配内存不足，则按需扩展
   if (newframeusage + size > framesize) {
@@ -63,7 +65,7 @@ StackAllocator::alloc(int size, int align)
   }
 
   frameusage = newframeusage + size;
-  return addr;
+  return frameusage;
 }
 
 /**
@@ -93,14 +95,8 @@ StackAllocator::spMove(int delta)
   framesize += delta_aligned;
 
   // 栈帧是向下增长的因此是移动一个负数！
-#ifdef VERBOSE
-  std::println(out, "");
-  std::println(out, "  # stack grow: {} bytes", delta_aligned);
-  std::println(out, "  addi, sp, sp, {}", -delta_aligned);
-  std::println(out, "");
-#else
-  std::println(out, "  addi, sp, sp, {}", -delta_aligned);
-#endif
+  DBG(out, "  # stack grow: {} bytes", delta_aligned);
+  std::println(out, "  addi sp, sp, {}", -delta_aligned);
 }
 
 /**
@@ -131,21 +127,32 @@ StackAllocator::freeTo(int mark)
 void
 StackAllocator::reset()
 {
-  if (framesize > 0) {
-    spMove(-framesize); // reset sp
-  }
+  // if (framesize > 0) {
+  //   spMove(-framesize); // reset sp
+  // }
 
   // 重置各数据成员
   frameusage = 0;
   framesize = 0;
-  spillslot.clear();
   scopemarks.clear();
 }
 
-int
-StackAllocator::offset(int addr) const
+void
+StackAllocator::enterFunc()
 {
-  return framesize - addr;
+  enterScope();
+  ra_addr = alloc(4, 4);
+  DBG(out, "  # save return address");
+  std::println(out, "  sw ra, {}(sp)", offsetFromSP(ra_addr));
+}
+
+void
+StackAllocator::retFunc()
+{
+  DBG(out, "  # restore return address");
+  std::println(out, "  lw ra, {}(sp)", offsetFromSP(ra_addr));
+  DBG(out, "  # release the stack frame");
+  std::println(out, "  addi sp, sp, {}", framesize);
 }
 
 void
@@ -168,14 +175,7 @@ StackAllocator::exitScope()
 int
 StackAllocator::spill(const sym::ValuePtr &val)
 {
-  if (spillslot.contains(val)) {
-    return spillslot[val];
-  }
-
-  int addr = alloc(val->type->size(), val->type->size());
-  spillslot[val] = addr;
-
-  return addr;
+  return alloc(val->type->memory, val->type->memory);
 }
 
 } // namespace cg

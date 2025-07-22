@@ -36,8 +36,8 @@ struct TypeKey {
         etypes.size() != other.etypes.size()) {
       return false;
     }
-    // 依次检查各元素的类型
 
+    // 依次检查各元素的类型
     for (std::size_t i = 0; i < etypes.size(); ++i) {
       if (etypes[i] != other.etypes[i]) {
         return false;
