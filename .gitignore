@@ -19,6 +19,8 @@
 !docs/*.pdf
 !test/**/*.rs
 !.github/**/*.yml
+!.vscode/launch.json
+!.vscode/tasks.json
 
 src/ast/accept.cpp
 !src/generate_accept.pl

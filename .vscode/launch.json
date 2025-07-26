@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "compiler debugging",
+            "type": "cppdbg",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "program": "${workspaceFolder}/build/toy_compiler",
+            // add arguments on demand
+            // each arugment should be written separately
+            // even values separated by spaces
+            // example: ["-i", "input.txt"]
+            "args": ["-i", "stack.rs", "--asm"],
+            "environment": [],
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "make" // 调用 tasks.json 中名为 "make" 的任务
+        },
+   ]
+}
