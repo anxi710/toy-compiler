@@ -295,8 +295,10 @@ IRBuilder::visit(ast::BreakExpr &bexpr)
   auto *loopctx = ctx.getLoopCtx().value_or(nullptr);
   ASSERT_MSG(loopctx, "break not in loop context");
 
+  std::string curfuncname = ctx.getCurFuncName();
+  std::string prefix = std::format("{}_{}", curfuncname, loopctx->name);
   codes.push_back(
-    QuadFactory::makeGoto(std::format("{}_end", loopctx->name))
+    QuadFactory::makeGoto(std::format("{}_end", prefix))
   );
 
   if (retval) {
@@ -311,8 +313,11 @@ IRBuilder::visit(ast::ContinueExpr &cexpr)
 {
   auto *loopctx = ctx.getLoopCtx().value_or(nullptr);
   ASSERT_MSG(loopctx, "continue not in loop context");
+
+  std::string curfuncname = ctx.getCurFuncName();
+  std::string prefix = std::format("{}_{}", curfuncname, loopctx->name);
   cexpr.ircode.push_back(
-    QuadFactory::makeGoto(std::format("{}_start", loopctx->name))
+    QuadFactory::makeGoto(std::format("{}_start", prefix))
   );
 }
 
@@ -528,7 +533,7 @@ static void
 makeCondAndInsert(std::vector<IRQuadPtr> &ircode, const ast::ExprPtr &cond, std::string label)
 {
   auto cond_code = cond->ircode;
-  cond_code.push_back(QuadFactory::makeBnez(cond->symbol, std::move(label)));
+  cond_code.push_back(QuadFactory::makeBeqz(cond->symbol, std::move(label)));
 
   ircode.insert(
     ircode.begin(),
@@ -560,11 +565,13 @@ insertLabels(std::vector<IRQuadPtr> &ircode, const std::string &base)
 void
 IRBuilder::visit(ast::IfExpr &iexpr)
 {
+  std::string curfuncname = ctx.getCurFuncName();
   std::string curctxname = ctx.getCurCtxName();
+  std::string prefix = std::format("{}_{}", curfuncname, curctxname);
   makeCondAndInsert(
     iexpr.body->ircode,
     iexpr.cond,
-    std::format("{}_end", curctxname)
+    std::format("{}_end", prefix)
   );
 
   if (iexpr.body->type.type != type::TypeFactory::UNIT_TYPE) {
@@ -576,27 +583,29 @@ IRBuilder::visit(ast::IfExpr &iexpr)
     );
   }
   iexpr.body->ircode.push_back(
-    QuadFactory::makeGoto(std::format("{}_final", curctxname))
+    QuadFactory::makeGoto(std::format("{}_final", prefix))
   );
 
-  insertLabels(iexpr.body->ircode, curctxname);
+  insertLabels(iexpr.body->ircode, prefix);
 
   auto else_codes = extractIrcodeAndConcat(iexpr.elses);
   iexpr.ircode = concatIrcode(iexpr.body->ircode, else_codes);
   iexpr.ircode.push_back(
-    QuadFactory::makeLabel(std::format("{}_final", curctxname))
+    QuadFactory::makeLabel(std::format("{}_final", prefix))
   );
 }
 
 void
 IRBuilder::visit(ast::ElseClause &eclause)
 {
+  std::string curfuncname = ctx.getCurFuncName();
   std::string curctxname = ctx.getCurCtxName();
+  std::string prefix = std::format("{}_{}", curfuncname, curctxname);
   if (const auto &cond = eclause.cond.value_or(nullptr); cond) {
     makeCondAndInsert(
       eclause.body->ircode,
       cond,
-      std::format("{}_end", curctxname)
+      std::format("{}_end", prefix)
     );
   }
 
@@ -614,10 +623,12 @@ IRBuilder::visit(ast::ElseClause &eclause)
     );
   }
   eclause.body->ircode.push_back(
-    QuadFactory::makeGoto(std::format("{}_final", ifscope.name))
+    QuadFactory::makeGoto(
+      std::format("{}_{}_final", curfuncname, ifscope.name)
+    )
   );
 
-  pushbackLabel(eclause.body->ircode, curctxname);
+  pushbackLabel(eclause.body->ircode, prefix);
 
   eclause.ircode = eclause.body->ircode;
 }
@@ -626,19 +637,21 @@ void
 IRBuilder::visit(ast::WhileLoopExpr&wlexpr)
 {
   auto cond_code = wlexpr.cond->ircode;
+  std::string curfuncname = ctx.getCurFuncName();
   std::string curctxname = ctx.getCurCtxName();
+  std::string prefix = std::format("{}_{}", curfuncname, curctxname);
   cond_code.push_back(
     QuadFactory::makeBeqz(
       wlexpr.cond->symbol,
-      std::format("{}_end", curctxname)
+      std::format("{}_end", prefix)
     )
   );
 
   wlexpr.ircode = concatIrcode(cond_code, wlexpr.body->ircode);
   wlexpr.ircode.push_back(
-    QuadFactory::makeGoto(std::format("{}_start", curctxname))
+    QuadFactory::makeGoto(std::format("{}_start", prefix))
   );
-  insertLabels(wlexpr.ircode, curctxname);
+  insertLabels(wlexpr.ircode, prefix);
 }
 
 void
@@ -649,10 +662,12 @@ IRBuilder::visit(ast::ForLoopExpr &flexpr)
   auto curforscope = ctx.getCurScope();
   CHECK(curforscope.val.has_value(), "for loop iterator didn't declared");
 
+  std::string curfuncname = ctx.getCurFuncName();
+  std::string prefix = std::format("{}_{}", curfuncname, curforscope.name);
   flexpr.ircode.push_back(
-    QuadFactory::makeGoto(std::format("{}_start", curforscope.name))
+    QuadFactory::makeGoto(std::format("{}_start", prefix))
   );
-  pushbackLabel(flexpr.ircode, curforscope.name);
+  pushbackLabel(flexpr.ircode, prefix);
 }
 
 /**
@@ -683,6 +698,8 @@ IRBuilder::visit(ast::RangeExpr &range_expr)
   );
 
   auto curforscope = ctx.getCurScope();
+  std::string curfuncname = ctx.getCurFuncName();
+  std::string prefix = std::format("{}_{}", curfuncname, curforscope.name);
   CHECK(curforscope.val.has_value(), "for loop iterator didn't declared");
   auto iter = curforscope.val.value();
 
@@ -697,7 +714,7 @@ IRBuilder::visit(ast::RangeExpr &range_expr)
   );
 
   codes.push_back(
-    QuadFactory::makeLabel(std::format("{}_start", curforscope.name))
+    QuadFactory::makeLabel(std::format("{}_start", prefix))
   );
 
   auto temp = ctx.produceTemp(range_expr.pos, type::TypeFactory::INT_TYPE);
@@ -712,7 +729,7 @@ IRBuilder::visit(ast::RangeExpr &range_expr)
     QuadFactory::makeBge(
       iter,
       range_expr.end->symbol,
-      std::format("{}_end", curforscope.name)
+      std::format("{}_end", prefix)
     )
   );
 
@@ -741,6 +758,9 @@ IRBuilder::visit(ast::IterableVal &iter)
   auto codes = iter.value->ircode;
 
   auto curforscope = ctx.getCurScope();
+  std::string curfuncname = ctx.getCurFuncName();
+  std::string prefix = std::format("{}_{}", curfuncname, curforscope.name);
+
   CHECK(curforscope.val.has_value(), "for loop iterator didn't declared");
   auto for_it = curforscope.val.value();
 
@@ -754,7 +774,7 @@ IRBuilder::visit(ast::IterableVal &iter)
   );
 
   codes.push_back(
-    QuadFactory::makeLabel(std::format("{}_start", curforscope.name))
+    QuadFactory::makeLabel(std::format("{}_start", prefix))
   );
 
   auto temp2 = ctx.produceTemp(iter.pos, type::TypeFactory::INT_TYPE);
@@ -771,7 +791,7 @@ IRBuilder::visit(ast::IterableVal &iter)
     QuadFactory::makeBge(
       temp2,
       size,
-      std::format("{}_end", curforscope.name)
+      std::format("{}_end", prefix)
     )
   );
 
@@ -792,12 +812,14 @@ IRBuilder::visit(ast::LoopExpr&lexpr)
 {
   auto codes = lexpr.body->ircode;
 
-  std::string label = ctx.getCurCtxName();
+  std::string curctxname = ctx.getCurCtxName();
+  std::string curfuncname = ctx.getCurFuncName();
+  std::string prefix = std::format("{}_{}", curfuncname, curctxname);
 
   codes.push_back(
-    QuadFactory::makeGoto(std::format("{}_start", label))
+    QuadFactory::makeGoto(std::format("{}_start", prefix))
   );
-  insertLabels(codes, label);
+  insertLabels(codes, prefix);
 
   lexpr.ircode = std::move(codes);
 }

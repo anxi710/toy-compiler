@@ -539,27 +539,30 @@ Parser::parseExpr()
       return expr;
     }
     case TokenType::ID: {
+      ast::ExprPtr expr;
+      ast::AssignElemPtr assign_elem = nullptr;
+      util::Position declpos;
       if (checkAhead(TokenType::LPAREN)) {
         // CallExpr -> <ID> ( ...
-        return parseCallExpr();
-      }
-      /*
-       * x, x[idx], x.idx
-       * 都即可以作为赋值语句的左值，又可以作为表达式的一个操作数
-       */
-      util::Position declpos = cur.pos;
-      auto val = parseValue(); // x 会被简单的识别为一个 Variable！
+        expr = parseCallExpr();
+      } else {
+        /*
+         * x, x[idx], x.idx
+         * 都即可以作为赋值语句的左值，又可以作为表达式的一个操作数
+         */
+        declpos = cur.pos;
+        expr = parseValue(); // x 会被简单的识别为一个 Variable！
 
-      ast::AssignElemPtr assign_elem = nullptr;
-      if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
-        assign_elem = parseAssignElem(val);
+        if (check(TokenType::LBRACK) || check(TokenType::DOT)) {
+          assign_elem = parseAssignElem(expr);
+        }
       }
 
       if (check(TokenType::ASSIGN)) {
         // AssignExpr -> AssignElem = Expr
         if (assign_elem == nullptr) {
           // 如果没有包装为一个赋值元素，则先包装
-          assign_elem = std::make_shared<ast::AssignElem>(val);
+          assign_elem = std::make_shared<ast::AssignElem>(expr);
           assign_elem->kind = ast::AssignElem::Kind::VARIABLE;
           assign_elem->pos = declpos;
           builder.build(*assign_elem);
@@ -567,7 +570,7 @@ Parser::parseExpr()
         return parseAssignExpr(std::move(assign_elem));
       }
 
-      return parseCmpExpr(assign_elem == nullptr ? val : assign_elem);
+      return parseCmpExpr(assign_elem == nullptr ? expr : assign_elem);
     }
     case TokenType::INT:
     case TokenType::LPAREN:

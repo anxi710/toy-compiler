@@ -7,6 +7,13 @@
 
 namespace util {
 
+/**
+ * @brief 打印错误信息并退出
+ *
+ * @param kind 错误种类
+ * @param msg 错误信息
+ * @param loc 错误发生的位置
+ */
 [[noreturn]] inline void
 printErrMsgAbort(const std::string &kind, const std::string &msg, const std::source_location &loc)
 {
@@ -18,7 +25,13 @@ printErrMsgAbort(const std::string &kind, const std::string &msg, const std::sou
   std::abort();
 }
 
-// 带信息的断言：仅在 Debug 模式下启用
+/**
+ * @brief 带信息的断言：仅在 Debug 模式下启用
+ *
+ * @param cond 判断条件
+ * @param msg 错误信息
+ * @param loc 错误发生的位置
+ */
 inline void
 assertWithMsg(bool cond, const std::string &msg, const std::source_location &loc)
 {
@@ -27,7 +40,12 @@ assertWithMsg(bool cond, const std::string &msg, const std::source_location &loc
   }
 }
 
-// 致命错误：无条件终止
+/**
+ * @brief 致命错误：无条件终止
+ *
+ * @param msg 错误信息
+ * @param loc 错误发生的位置
+ */
 [[noreturn]] inline void
 fatalError(const std::string &msg, const std::source_location& loc)
 {

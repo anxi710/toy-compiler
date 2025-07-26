@@ -5,9 +5,6 @@
 #include "panic.hpp"
 #include "asm_dbg.hpp"
 #include "ir_quad.hpp"
-#include "mem_alloc.hpp"
-#include "reg_alloc.hpp"
-#include "stack_alloc.hpp"
 #include "symbol_table.hpp"
 #include "code_generate.hpp"
 
@@ -39,9 +36,6 @@ CodeGenerator::generateFunc(const std::vector<ir::IRQuadPtr> &funccode)
     DBG(out, "  # {}", code->str());
 
     switch (code->op) {
-      case ir::IROp::FUNC:
-        emitFunc(code);
-        break;
       case ir::IROp::ADD: case ir::IROp::SUB:
       case ir::IROp::MUL: case ir::IROp::DIV:
       case ir::IROp::EQ:  case ir::IROp::NEQ:
@@ -49,31 +43,15 @@ CodeGenerator::generateFunc(const std::vector<ir::IRQuadPtr> &funccode)
       case ir::IROp::LT:  case ir::IROp::LEQ:
         emitBinary(code);
         break;
-      case ir::IROp::ASSIGN:
-        emitAssign(code);
-        break;
-      case ir::IROp::GOTO:
-        emitGoto(code);
-        break;
-      case ir::IROp::BEQZ:
-        emitBeqz(code);
-        break;
-      case ir::IROp::BNEZ:
-        emitBnez(code);
-        break;
-      case ir::IROp::BGE:
-        emitBge(code);
-        break;
-      case ir::IROp::LABEL:
-        emitLabel(code);
-        break;
-      case ir::IROp::CALL:
-        emitCall(code);
-        break;
-      case ir::IROp::RETURN:
-        stackalloc->retFunc();
-        emitRet(code);
-        break;
+      case ir::IROp::ASSIGN: emitAssign(code); break;
+      case ir::IROp::GOTO:   emitGoto(code);   break;
+      case ir::IROp::BEQZ:   emitBeqz(code);   break;
+      case ir::IROp::BNEZ:   emitBnez(code);   break;
+      case ir::IROp::BGE:    emitBge(code);    break;
+      case ir::IROp::LABEL:  emitLabel(code);  break;
+      case ir::IROp::CALL:   emitCall(code);   break;
+      case ir::IROp::FUNC:   emitFunc(code);   break;
+      case ir::IROp::RETURN: emitRet(code);    break;
       default:
         UNREACHABLE(
           std::format("unsupport ir operator {}", ir::irop2str(code->op))
@@ -126,6 +104,8 @@ CodeGenerator::emitRet(const ir::IRQuadPtr &code)
     }
   }
 
+  stackalloc->retFunc();
+
   std::println(out, "  ret");
 }
 
@@ -139,13 +119,16 @@ CodeGenerator::emitAssign(const ir::IRQuadPtr &code)
   }
 
   auto src = memalloc->alloc(code->arg1.value, false);
+  auto dst = memalloc->alloc(code->dst.value, true);
 
-  DBG(out,
-    "  # {} reuses {}'s register",
-    code->dst.value->str(),
-    code->arg1.value->str()
-  );
-  memalloc->reuseReg(src, code->dst.value);
+  std::println(out, "  mv {}, {}", dst, src);
+
+  // DBG(out,
+  //   "  # {} reuses {}'s register",
+  //   code->dst.value->str(),
+  //   code->arg1.value->str()
+  // );
+  // memalloc->reuseReg(src, code->dst.value);
 }
 
 void
@@ -283,6 +266,7 @@ CodeGenerator::emitBinary(const ir::IRQuadPtr &code)
 
   if (code->arg1.isConst() || code->arg2.isConst()) {
     emitImmBinary(code);
+    return;
   }
 
   auto lhs = memalloc->alloc(code->arg1.value, false);
@@ -439,21 +423,21 @@ void
 CodeGenerator::emitImmSub(Register lhs, int rhs, Register dst)
 {
   int neg_rhs = -rhs;
-  std::println(out, " addi {}, {}, {}", dst, lhs, neg_rhs);
+  std::println(out, "  addi {}, {}, {}", dst, lhs, neg_rhs);
 }
 
 void
 CodeGenerator::emitImmMul(Register lhs, int rhs, Register dst)
 {
   std::println(out, "  li {}, {}", dst, rhs);
-  std::println(out, "  mul {}, {}, {}", lhs, dst, dst);
+  std::println(out, "  mul {}, {}, {}", dst, lhs, dst);
 }
 
 void
 CodeGenerator::emitImmDiv(Register lhs, int rhs, Register dst)
 {
   std::println(out, "  li {}, {}", dst, rhs);
-  std::println(out, "  div {}, {}, {}", lhs, dst, dst);
+  std::println(out, "  div {}, {}, {}", dst, lhs, dst);
 }
 
 void

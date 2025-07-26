@@ -1,13 +1,12 @@
+#include <print>
 #include <fstream>
 #include <sstream>
 #include <filesystem>
 
 #include "panic.hpp"
 #include "preproc.hpp"
+#include "ir_quad.hpp"
 #include "compiler.hpp"
-#include "mem_alloc.hpp"
-#include "reg_alloc.hpp"
-#include "stack_alloc.hpp"
 #include "code_generate.hpp"
 
 namespace cpr {
@@ -85,7 +84,10 @@ Compiler::generateIR(const std::string &file, bool print)
   if (print) {
     // pretty print
     for (const auto &code : ast_root->ircode) {
-      out << code->str() << std::endl;
+      std::string idxstr =
+        (code->op == ir::IROp::LABEL || code ->op == ir::IROp::FUNC)
+        ? "" : "  ";
+      std::println(out, "{}{}", idxstr, code->str());
     }
   } else {
     std::filesystem::remove(filename);

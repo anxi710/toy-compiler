@@ -24,6 +24,7 @@
 #include <cassert>
 
 #include "panic.hpp"
+#include "symbol.hpp"
 #include "err_report.hpp"
 #include "type_factory.hpp"
 #include "break_checker.hpp"

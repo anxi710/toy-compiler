@@ -12,7 +12,7 @@ static inline constexpr std::string BOLD   = "\033[1m";
 static inline constexpr std::string RESET  = "\033[0m";
 static inline constexpr std::string RED    = "\033[1;31m";
 static inline constexpr std::string BLUE   = "\033[1;34m";
-static inline constexpr std::string YELLOW = "\033[1;33m";
+// static inline constexpr std::string YELLOW = "\033[1;33m";
 
 /**
  * @brief 打印指定位置处的源代码

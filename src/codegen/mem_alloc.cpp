@@ -56,12 +56,13 @@ MemAllocator::reuseReg(Register reg, const sym::ValuePtr &val)
       // 释放掉原符号占据的 register
       regalloc.free(symbol);
     }
+    if (symbol->on_stack) {
+      symbol->dirty = true;
+    }
   } else {
     symbol = std::make_shared<Symbol>();
     symbol->on_stack = false;
     symbol->dirty = false;
-    symbol->in_reg = true;
-    symbol->regloc = reg;
     symbol->val = val;
 
     symtab[symbol->val->str()] = symbol;

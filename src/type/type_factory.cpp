@@ -10,8 +10,10 @@ const TypePtr TypeFactory::UNKNOWN_TYPE = std::make_shared<UnknownType>();
 
 /**
  * @brief  判断两类型是否相同
+ *
  * @param  lhs 左值
  * @param  rhs 右值
+ *
  * @return 相同为 true，不同为 false
  */
 bool

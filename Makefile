@@ -66,9 +66,9 @@ bear:
 	bear -- $(MAKE) all
 
 clean:
-	-rm -rf $(BUILD_DIR) *.ir *.code
+	-rm -rf $(BUILD_DIR) *.ir *.s
 
 clean-all:
-	-rm -rf $(BUILD_DIR) compile_commands.json *.ir *.code
+	-rm -rf $(BUILD_DIR) compile_commands.json *.ir *.s
 
 -include $(DEPS)

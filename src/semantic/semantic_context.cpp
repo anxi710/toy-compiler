@@ -154,6 +154,7 @@ SemanticContext::declareConst(std::variant<int, bool> val, util::Position pos)
   constant->init = true;
   constant->name = name;
   constant->type = type;
+  constant->val = val;
 
   symtab.declareConst(name, constant);
 

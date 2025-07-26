@@ -17,39 +17,39 @@
  */
 #pragma once
 
-#define OOP_VISIT_NODES(DEFINE_NODE) \
-  DEFINE_NODE(Prog) \
-  DEFINE_NODE(Type) \
-  DEFINE_NODE(Arg) \
-  DEFINE_NODE(StmtBlockExpr) \
-  DEFINE_NODE(FuncHeaderDecl) \
-  DEFINE_NODE(FuncDecl) \
-  DEFINE_NODE(ExprStmt) \
-  DEFINE_NODE(EmptyExpr) \
-  DEFINE_NODE(BracketExpr) \
-  DEFINE_NODE(AssignElem) \
-  DEFINE_NODE(Variable) \
-  DEFINE_NODE(ArrAcc) \
-  DEFINE_NODE(TupAcc) \
-  DEFINE_NODE(Number) \
-  DEFINE_NODE(ArrElems) \
-  DEFINE_NODE(TupElems) \
-  DEFINE_NODE(RetExpr) \
-  DEFINE_NODE(VarDeclStmt) \
-  DEFINE_NODE(AssignExpr) \
-  DEFINE_NODE(CmpExpr) \
-  DEFINE_NODE(AriExpr) \
-  DEFINE_NODE(CallExpr) \
-  DEFINE_NODE(ElseClause) \
-  DEFINE_NODE(IfExpr) \
-  DEFINE_NODE(WhileLoopExpr) \
-  DEFINE_NODE(RangeExpr) \
-  DEFINE_NODE(IterableVal) \
-  DEFINE_NODE(ForLoopExpr) \
-  DEFINE_NODE(LoopExpr) \
-  DEFINE_NODE(BreakExpr) \
-  DEFINE_NODE(ContinueExpr) \
-  DEFINE_NODE(EmptyStmt)
+#define OOP_VISIT_NODES(_) \
+  _(Prog) \
+  _(Type) \
+  _(Arg) \
+  _(StmtBlockExpr) \
+  _(FuncHeaderDecl) \
+  _(FuncDecl) \
+  _(ExprStmt) \
+  _(EmptyExpr) \
+  _(BracketExpr) \
+  _(AssignElem) \
+  _(Variable) \
+  _(ArrAcc) \
+  _(TupAcc) \
+  _(Number) \
+  _(ArrElems) \
+  _(TupElems) \
+  _(RetExpr) \
+  _(VarDeclStmt) \
+  _(AssignExpr) \
+  _(CmpExpr) \
+  _(AriExpr) \
+  _(CallExpr) \
+  _(ElseClause) \
+  _(IfExpr) \
+  _(WhileLoopExpr) \
+  _(RangeExpr) \
+  _(IterableVal) \
+  _(ForLoopExpr) \
+  _(LoopExpr) \
+  _(BreakExpr) \
+  _(ContinueExpr) \
+  _(EmptyStmt)
 
 namespace ast {
 

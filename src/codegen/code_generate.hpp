@@ -4,6 +4,10 @@
 #include <vector>
 #include <fstream>
 
+#include "mem_alloc.hpp"
+#include "reg_alloc.hpp"
+#include "stack_alloc.hpp"
+
 namespace ast { struct Prog; }
 
 namespace ir {
@@ -16,11 +20,6 @@ using IRQuadPtr = std::shared_ptr<IRQuad>;
 namespace sym { class SymbolTable; }
 
 namespace cg {
-
-class StackAllocator;
-class RegAllocator;
-class MemAllocator;
-enum class Register : std::uint8_t;
 
 class CodeGenerator {
 public:

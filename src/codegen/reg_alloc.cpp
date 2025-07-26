@@ -36,6 +36,8 @@ void
 RegAllocator::reuse(Register reg, const SymbolPtr &symbol)
 {
   auto &sympool = regpool[toIndex(reg)];
+  symbol->in_reg = true;
+  symbol->regloc = reg;
   sympool[symbol->val->str()] = symbol;
 }
 

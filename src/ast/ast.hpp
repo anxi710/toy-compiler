@@ -19,27 +19,36 @@
  * - ast: Contains all AST node definitions and related types
  *
  * Dependencies:
- * - symbol.hpp: Symbol table and value representations
- * - ir_quad.hpp: Intermediate representation (IR) quads
  * - position.hpp: Source code position tracking
  * - type_factory.hpp: Type system and type construction utilities
  */
 #pragma once
 
+#include <memory>
 #include <vector>
 
-#include "symbol.hpp"
-#include "ir_quad.hpp"
 #include "position.hpp"
 #include "type_factory.hpp"
+
+namespace ir {
+
+struct IRQuad;
+using IRQuadPtr = std::shared_ptr<IRQuad>;
+
+} // namespace ir
+
+namespace sym {
+
+struct Value;
+using ValuePtr = std::shared_ptr<Value>;
+
+} // namespace sym
 
 namespace ast {
 
 class OOPVisitor;
 
-/**
- * @brief 所有 AST 结点的基类
- */
+/// 所有 AST 结点的基类
 struct Node {
   util::Position pos; // 在源代码中的位置
   std::vector<ir::IRQuadPtr> ircode; // 存放结点对应的四元式序列
@@ -355,7 +364,7 @@ struct StmtBlockExpr : Expr, CRTPVisitable<StmtBlockExpr> {
   std::vector<StmtPtr> stmts; // statements
 
   StmtBlockExpr(std::vector<StmtPtr> stmts)
-    : has_ret(false), stmts(std::move(stmts)) {}
+    : stmts(std::move(stmts)) {}
   ~StmtBlockExpr() override = default;
   void accept(OOPVisitor& visitor) final;
 };
