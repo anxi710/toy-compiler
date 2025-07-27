@@ -9,7 +9,6 @@
 !.clang-tidy
 !.githooks/*
 !riscv-asm/main.c
-!riscv-asm/**/*.rs
 !src/**/*.cpp
 !src/**/*.hpp
 !src/**/*.inl
