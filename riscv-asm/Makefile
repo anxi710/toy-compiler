@@ -40,7 +40,7 @@ elf: $(MAIN) $(SRC)
 
 qemu: $(EXE)
 	@echo "[*] Running $(EXE) via QEMU..."
-	@$(QEMU) $(EXE)
+	-@$(QEMU) $(EXE)
 
 qemu-gdb: $(EXE)
 	@echo "[*] Starting QEMU with GDB on port $(GDBPORT)..."
